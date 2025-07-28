@@ -660,21 +660,7 @@
             </div>
             
             <div id="chatMessages" class="chat-messages">
-                <div class="message assistant">
-                    <div class="message-content">
-                        <strong>👋 Welcome to the Enhanced Architecture Assistant!</strong><br><br>
-                        I'm your comprehensive Software Architecture Assistant with advanced capabilities:
-                        <ul style="margin: 10px 0; padding-left: 20px;">
-                            <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
-                            <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
-                            <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
-                            <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
-                            <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
-                            <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
-                        </ul>
-                        Select your preferred mode and start asking questions!
-                    </div>
-                </div>
+                <!-- Chat history will be loaded here -->
             </div>
             
             <div class="input-container">
@@ -729,6 +715,7 @@
             loadModes();
             initializeEventListeners();
             loadSessionInfo();
+            loadInitialChatHistory();
             mermaid.initialize({ 
                 startOnLoad: false,
                 theme: 'default',
@@ -1174,7 +1161,7 @@
         }
 
         function clearHistory() {
-            if (confirm('Are you sure you want to clear the chat history?')) {
+            if (confirm('Are you sure you want to clear the chat history? This will permanently delete all saved conversations.')) {
                 fetch('/clear_history', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -1192,7 +1179,14 @@
                             </div>
                         `;
                         document.getElementById('filePreview').innerHTML = '';
+                        loadSessionInfo(); // Refresh session info
+                        console.log('Chat history cleared successfully');
+                    } else {
+                        console.error('Error clearing history:', data.error);
                     }
+                })
+                .catch(error => {
+                    console.error('Error clearing history:', error);
                 });
             }
         }
@@ -1292,6 +1286,82 @@
             })
             .catch(error => {
                 document.getElementById('sessionInfo').innerHTML = 'Unable to load session info';
+            });
+        }
+
+        function loadInitialChatHistory() {
+            console.log('Loading initial chat history...');
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Loaded chat history:', data);
+                const chatMessages = document.getElementById('chatMessages');
+                
+                if (data.history && data.history.length > 0) {
+                    // Clear welcome message
+                    chatMessages.innerHTML = '';
+                    
+                    // Display each exchange from history
+                    data.history.forEach(exchange => {
+                        const userMessageDiv = addMessage('user', exchange.user);
+                        addMessageActions(userMessageDiv, exchange.user);
+                        
+                        const assistantMessageDiv = addMessage('assistant', exchange.assistant);
+                        addMessageActions(assistantMessageDiv, exchange.assistant);
+                        
+                        // Add timestamp info if available
+                        if (exchange.timestamp) {
+                            const timestampDiv = document.createElement('div');
+                            timestampDiv.style.cssText = 'font-size: 10px; color: #666; margin-top: 5px; text-align: center;';
+                            timestampDiv.textContent = new Date(exchange.timestamp).toLocaleString();
+                            assistantMessageDiv.appendChild(timestampDiv);
+                        }
+                    });
+                    
+                    // Render any Mermaid diagrams in the loaded history
+                    setTimeout(() => {
+                        renderMermaidDiagrams();
+                    }, 500);
+                    
+                    console.log(`Loaded ${data.history.length} chat exchanges from database`);
+                } else {
+                    // Show welcome message if no history
+                    chatMessages.innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-content">
+                                <strong>👋 Welcome back to the Enhanced Architecture Assistant!</strong><br><br>
+                                I'm your comprehensive Software Architecture Assistant with advanced capabilities:
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
+                                    <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
+                                    <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
+                                    <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
+                                    <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
+                                    <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
+                                    <li>💾 <strong>Persistent Storage:</strong> Your conversations are automatically saved and will be restored when you return</li>
+                                </ul>
+                                Select your preferred mode and start asking questions!
+                            </div>
+                        </div>
+                    `;
+                    console.log('No previous chat history found - showing welcome message');
+                }
+                
+                scrollToBottom();
+            })
+            .catch(error => {
+                console.error('Error loading chat history:', error);
+                // Show error message but keep welcome message as fallback
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-content">
+                            <strong>⚠️ Welcome to the Enhanced Architecture Assistant!</strong><br><br>
+                            <em>Note: There was an issue loading your previous chat history, but new conversations will be saved.</em><br><br>
+                            I'm ready to help with all your software architecture needs!
+                        </div>
+                    </div>
+                `;
             });
         }
 

@@ -304,7 +304,7 @@ def summarize_context(chat_history):
 def index():
     session_id = get_session_id()
     
-    # Load persistent chat history
+    # Load persistent chat history and store in session
     persistent_history = load_chat_history(session_id)
     session['chat_history'] = persistent_history
     
@@ -312,7 +312,7 @@ def index():
         session['assistant_mode'] = 'general'
     session.modified = True
     
-    return render_template('index.html', modes=ASSISTANT_MODES)
+    return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
 
 @app.route('/chat', methods=['POST'])
 def chat():
