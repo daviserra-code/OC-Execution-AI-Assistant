@@ -617,12 +617,25 @@
                 </button>
             </div>
             
+            <div class="session-info" style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                    <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
+                    <strong>Persistent Storage Active</strong>
+                </div>
+                <div id="sessionInfo" style="color: #666;">
+                    Loading session info...
+                </div>
+            </div>
+            
             <div class="controls">
                 <button onclick="showPrompt()" class="control-btn primary">
                     <i class="fas fa-eye"></i> View System Prompt
                 </button>
                 <button onclick="showChatHistory()" class="control-btn secondary">
                     <i class="fas fa-history"></i> View Chat History
+                </button>
+                <button onclick="showSessionInfo()" class="control-btn secondary">
+                    <i class="fas fa-info-circle"></i> Session Info
                 </button>
                 <button onclick="showExportOptions()" class="control-btn warning">
                     <i class="fas fa-download"></i> Export Conversation
@@ -715,6 +728,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadModes();
             initializeEventListeners();
+            loadSessionInfo();
             mermaid.initialize({ 
                 startOnLoad: false,
                 theme: 'default',
@@ -1246,6 +1260,51 @@
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
+        }
+
+        function loadSessionInfo() {
+            fetch('/get_session_info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.session_id) {
+                    const sessionInfo = document.getElementById('sessionInfo');
+                    const createdDate = new Date(data.created_at).toLocaleDateString();
+                    const lastActivity = new Date(data.last_activity).toLocaleString();
+                    
+                    sessionInfo.innerHTML = `
+                        <div>Messages: ${data.message_count}</div>
+                        <div>Started: ${createdDate}</div>
+                        <div>Last activity: ${lastActivity}</div>
+                    `;
+                }
+            })
+            .catch(error => {
+                document.getElementById('sessionInfo').innerHTML = 'Unable to load session info';
+            });
+        }
+
+        function showSessionInfo() {
+            fetch('/get_session_info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.session_id) {
+                    const sessionDetails = `**📊 Session Information:**
+
+**Session ID:** ${data.session_id}
+**Created:** ${new Date(data.created_at).toLocaleString()}
+**Last Activity:** ${new Date(data.last_activity).toLocaleString()}
+**Total Messages:** ${data.message_count}
+
+Your chat history is automatically saved to a local SQLite database and will persist between browser sessions. This session will remain active until manually cleared or after 30 days of inactivity.`;
+                    
+                    addMessage('assistant', sessionDetails);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading session info: ${error.message}`);
+            });
         }
     </script>
 </body>

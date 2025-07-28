@@ -12,11 +12,123 @@ import time
 from datetime import datetime
 import threading
 import queue
+import sqlite3
+from contextlib import contextmanager
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
 
 openai.api_key = os.environ.get('OPENAI_API_KEY', '')
+
+# Database configuration
+DATABASE_PATH = 'chat_history.db'
+
+def init_database():
+    """Initialize the SQLite database with required tables"""
+    with sqlite3.connect(DATABASE_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_exchanges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                user_message TEXT NOT NULL,
+                assistant_response TEXT NOT NULL,
+                mode TEXT DEFAULT 'general',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES chat_sessions (session_id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_session_id ON chat_exchanges (session_id)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_timestamp ON chat_exchanges (timestamp)
+        ''')
+        conn.commit()
+
+@contextmanager
+def get_db_connection():
+    """Context manager for database connections"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+def get_session_id():
+    """Get or create a session ID"""
+    if 'user_session_id' not in session:
+        session['user_session_id'] = str(uuid.uuid4())
+        session.modified = True
+        
+        # Create session in database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'INSERT INTO chat_sessions (session_id) VALUES (?)',
+                (session['user_session_id'],)
+            )
+            conn.commit()
+    
+    return session['user_session_id']
+
+def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
+    """Save a chat exchange to the database"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
+            VALUES (?, ?, ?, ?)
+        ''', (session_id, user_message, assistant_response, mode))
+        
+        # Update session last activity
+        cursor.execute('''
+            UPDATE chat_sessions 
+            SET last_activity = CURRENT_TIMESTAMP 
+            WHERE session_id = ?
+        ''', (session_id,))
+        conn.commit()
+
+def load_chat_history(session_id, limit=50):
+    """Load chat history from database"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT user_message, assistant_response, mode, timestamp
+            FROM chat_exchanges
+            WHERE session_id = ?
+            ORDER BY timestamp ASC
+            LIMIT ?
+        ''', (session_id, limit))
+        
+        return [
+            {
+                'user': row['user_message'],
+                'assistant': row['assistant_response'],
+                'mode': row['mode'],
+                'timestamp': row['timestamp']
+            }
+            for row in cursor.fetchall()
+        ]
+
+def clear_session_history(session_id):
+    """Clear chat history for a specific session"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
+        conn.commit()
+
+# Initialize database on startup
+init_database()
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -183,10 +295,16 @@ def summarize_context(chat_history):
 
 @app.route('/')
 def index():
-    if 'chat_history' not in session:
-        session['chat_history'] = []
+    session_id = get_session_id()
+    
+    # Load persistent chat history
+    persistent_history = load_chat_history(session_id)
+    session['chat_history'] = persistent_history
+    
     if 'assistant_mode' not in session:
         session['assistant_mode'] = 'general'
+    session.modified = True
+    
     return render_template('index.html', modes=ASSISTANT_MODES)
 
 @app.route('/chat', methods=['POST'])
@@ -270,7 +388,10 @@ def chat():
                 'timestamp': time.time()
             }
         
-        # Save to chat history
+        # Save to database and session
+        session_id = get_session_id()
+        save_chat_exchange(session_id, user_message, assistant_response, mode)
+        
         session['chat_history'].append({
             'user': user_message,
             'assistant': assistant_response,
@@ -424,7 +545,8 @@ def set_mode():
 @app.route('/export_conversation', methods=['GET'])
 def export_conversation():
     try:
-        chat_history = session.get('chat_history', [])
+        session_id = get_session_id()
+        chat_history = load_chat_history(session_id, limit=1000)  # Load more for export
         export_format = request.args.get('format', 'json')
         
         if export_format == 'json':
@@ -461,10 +583,17 @@ def export_conversation():
 
 @app.route('/clear_history', methods=['POST'])
 def clear_history():
-    session['chat_history'] = []
-    session['uploaded_files'] = {}
-    session.modified = True
-    return jsonify({'success': True})
+    try:
+        session_id = get_session_id()
+        clear_session_history(session_id)
+        
+        session['chat_history'] = []
+        session['uploaded_files'] = {}
+        session.modified = True
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Error clearing history: {str(e)}'}), 500
 
 @app.route('/get_prompt', methods=['GET'])
 def get_prompt():
@@ -481,7 +610,15 @@ def get_prompt():
 @app.route('/get_history', methods=['GET'])
 def get_history():
     try:
-        chat_history = session.get('chat_history', [])
+        session_id = get_session_id()
+        
+        # Load fresh history from database
+        chat_history = load_chat_history(session_id, limit=100)
+        
+        # Update session with latest history
+        session['chat_history'] = chat_history
+        session.modified = True
+        
         return jsonify({'history': chat_history, 'count': len(chat_history)})
     except Exception as e:
         return jsonify({'error': f'Error retrieving chat history: {str(e)}'}), 500
@@ -490,9 +627,70 @@ def get_history():
 def get_modes():
     return jsonify({'modes': ASSISTANT_MODES})
 
+@app.route('/get_session_info', methods=['GET'])
+def get_session_info():
+    """Get information about the current session"""
+    try:
+        session_id = get_session_id()
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT created_at, last_activity,
+                       (SELECT COUNT(*) FROM chat_exchanges WHERE session_id = ?) as message_count
+                FROM chat_sessions 
+                WHERE session_id = ?
+            ''', (session_id, session_id))
+            
+            row = cursor.fetchone()
+            if row:
+                return jsonify({
+                    'session_id': session_id,
+                    'created_at': row['created_at'],
+                    'last_activity': row['last_activity'],
+                    'message_count': row['message_count']
+                })
+            else:
+                return jsonify({'error': 'Session not found'}), 404
+                
+    except Exception as e:
+        return jsonify({'error': f'Error retrieving session info: {str(e)}'}), 500
+
+@app.route('/delete_old_sessions', methods=['POST'])
+def delete_old_sessions():
+    """Delete sessions older than specified days (default 30 days)"""
+    try:
+        days = request.json.get('days', 30) if request.is_json else 30
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Delete old chat exchanges first
+            cursor.execute('''
+                DELETE FROM chat_exchanges 
+                WHERE session_id IN (
+                    SELECT session_id FROM chat_sessions 
+                    WHERE last_activity < datetime('now', '-{} days')
+                )
+            '''.format(days))
+            
+            # Delete old sessions
+            cursor.execute('''
+                DELETE FROM chat_sessions 
+                WHERE last_activity < datetime('now', '-{} days')
+            '''.format(days))
+            
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+        return jsonify({'success': True, 'deleted_sessions': deleted_count})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error deleting old sessions: {str(e)}'}), 500
+
 @app.route('/save_chat', methods=['POST'])
 def save_chat():
-    """Save chat exchange to session after streaming"""
+    """Save chat exchange to database and session after streaming"""
     try:
         data = request.get_json()
         user_message = data.get('user_message', '')
@@ -502,6 +700,11 @@ def save_chat():
         if not user_message or not assistant_response:
             return jsonify({'error': 'Missing message data'}), 400
         
+        # Save to database
+        session_id = get_session_id()
+        save_chat_exchange(session_id, user_message, assistant_response, mode)
+        
+        # Also update session for immediate use
         if 'chat_history' not in session:
             session['chat_history'] = []
         
