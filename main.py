@@ -1,4 +1,4 @@
-
+show 
 from flask import Flask, render_template, request, jsonify, session
 import openai
 import os
