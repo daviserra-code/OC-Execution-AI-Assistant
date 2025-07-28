@@ -345,6 +345,9 @@
                 <button onclick="showPrompt()" class="clear-btn" style="background: #28a745; margin-bottom: 10px;">
                     <i class="fas fa-eye"></i> View System Prompt
                 </button>
+                <button onclick="showChatHistory()" class="clear-btn" style="background: #17a2b8; margin-bottom: 10px;">
+                    <i class="fas fa-history"></i> View Chat History
+                </button>
                 <button onclick="clearHistory()" class="clear-btn">
                     <i class="fas fa-trash"></i> Clear Chat History
                 </button>
@@ -561,6 +564,33 @@
             .then(data => {
                 if (data.prompt) {
                     addMessage('assistant', `**🤖 System Prompt:**\n\n${data.prompt}`);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Network error: ${error.message}`);
+            });
+        }
+
+        function showChatHistory() {
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
+                    
+                    if (data.count === 0) {
+                        historyText += "No chat history found.";
+                    } else {
+                        data.history.forEach((exchange, index) => {
+                            historyText += `**Exchange ${index + 1}:**\n`;
+                            historyText += `**User:** ${exchange.user}\n`;
+                            historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
+                        });
+                    }
+                    
+                    addMessage('assistant', historyText);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
                 }

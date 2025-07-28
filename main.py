@@ -169,5 +169,13 @@ def get_prompt():
     except Exception as e:
         return jsonify({'error': f'Error retrieving prompt: {str(e)}'}), 500
 
+@app.route('/get_history', methods=['GET'])
+def get_history():
+    try:
+        chat_history = session.get('chat_history', [])
+        return jsonify({'history': chat_history, 'count': len(chat_history)})
+    except Exception as e:
+        return jsonify({'error': f'Error retrieving chat history: {str(e)}'}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
