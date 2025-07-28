@@ -342,6 +342,9 @@
             </div>
             
             <div class="controls">
+                <button onclick="showPrompt()" class="clear-btn" style="background: #28a745; margin-bottom: 10px;">
+                    <i class="fas fa-eye"></i> View System Prompt
+                </button>
                 <button onclick="clearHistory()" class="clear-btn">
                     <i class="fas fa-trash"></i> Clear Chat History
                 </button>
@@ -550,6 +553,21 @@
                     }
                 });
             }
+        }
+
+        function showPrompt() {
+            fetch('/get_prompt')
+            .then(response => response.json())
+            .then(data => {
+                if (data.prompt) {
+                    addMessage('assistant', `**🤖 System Prompt:**\n\n${data.prompt}`);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Network error: ${error.message}`);
+            });
         }
 
         // Auto-resize textarea
