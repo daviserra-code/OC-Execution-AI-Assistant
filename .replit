@@ -5,6 +5,7 @@ hidden = [".pythonlibs"]
 
 [nix]
 channel = "stable-23_05"
+packages = ["gdb"]
 
 [unitTest]
 language = "python3"
