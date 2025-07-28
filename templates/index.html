@@ -900,6 +900,11 @@
                             hideStreamingIndicator();
                             addMessageActions(messageDiv, fullResponse);
                             renderMermaidDiagrams();
+                            
+                            // Save chat history after streaming completes
+                            if (fullResponse) {
+                                saveChatToSession(message, fullResponse);
+                            }
                             return;
                         }
                         
@@ -922,6 +927,11 @@
                                         hideStreamingIndicator();
                                         addMessageActions(messageDiv, fullResponse);
                                         renderMermaidDiagrams();
+                                        
+                                        // Save chat history after streaming completes
+                                        if (fullResponse) {
+                                            saveChatToSession(message, fullResponse);
+                                        }
                                         return;
                                     }
                                 } catch (e) {
@@ -939,6 +949,25 @@
             .catch(error => {
                 hideStreamingIndicator();
                 contentDiv.innerHTML = `❌ Network error: ${error.message}`;
+            });
+        }
+
+        function saveChatToSession(userMessage, assistantResponse) {
+            // Get current mode from UI
+            const activeMode = document.querySelector('.mode-btn.active');
+            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+            
+            fetch('/save_chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_message: userMessage,
+                    assistant_response: assistantResponse,
+                    mode: mode
+                })
+            })
+            .catch(error => {
+                console.error('Error saving chat:', error);
             });
         }
 

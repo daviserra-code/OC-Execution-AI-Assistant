@@ -297,31 +297,35 @@ def chat_stream():
         if not openai.api_key:
             return jsonify({'error': 'OpenAI API key not configured.'}), 500
         
+        # Get session data before streaming starts
+        if 'chat_history' not in session:
+            session['chat_history'] = []
+        
+        chat_history = session.get('chat_history', [])
+        mode = session.get('assistant_mode', 'general')
+        uploaded_files = session.get('uploaded_files', {})
+        
         def generate():
             try:
-                if 'chat_history' not in session:
-                    session['chat_history'] = []
-                
-                mode = session.get('assistant_mode', 'general')
                 current_prompt = ASSISTANT_MODES[mode]['prompt']
                 
                 # Build messages
                 messages = [{"role": "system", "content": current_prompt}]
                 
                 # Add context
-                context_summary = summarize_context(session['chat_history'])
+                context_summary = summarize_context(chat_history)
                 if context_summary:
                     messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
                 
                 # Add uploaded files context
-                if 'uploaded_files' in session and session['uploaded_files']:
+                if uploaded_files:
                     files_context = "Uploaded files context:\n"
-                    for filename, content in session['uploaded_files'].items():
+                    for filename, content in uploaded_files.items():
                         files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
                     messages.append({"role": "system", "content": files_context})
                 
                 # Add recent history
-                for chat in session['chat_history'][-15:]:
+                for chat in chat_history[-15:]:
                     messages.append({"role": "user", "content": chat['user']})
                     messages.append({"role": "assistant", "content": chat['assistant']})
                 
@@ -343,21 +347,27 @@ def chat_stream():
                         full_response += content
                         yield f"data: {json.dumps({'content': content})}\n\n"
                 
-                # Save to history after streaming is complete
-                session['chat_history'].append({
-                    'user': user_message,
-                    'assistant': full_response,
-                    'timestamp': datetime.now().isoformat(),
-                    'mode': mode
-                })
-                session.modified = True
-                
                 yield f"data: {json.dumps({'done': True})}\n\n"
+                
+                # Save to history after streaming - we need to update session outside the generator
+                with app.test_request_context():
+                    if 'chat_history' not in session:
+                        session['chat_history'] = []
+                    session['chat_history'].append({
+                        'user': user_message,
+                        'assistant': full_response,
+                        'timestamp': datetime.now().isoformat(),
+                        'mode': mode
+                    })
+                    session.modified = True
                 
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
         
-        return Response(generate(), mimetype='text/plain')
+        response = Response(generate(), mimetype='text/event-stream')
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['Connection'] = 'keep-alive'
+        return response
         
     except Exception as e:
         return jsonify({'error': f'Stream error: {str(e)}'}), 500
@@ -479,6 +489,34 @@ def get_history():
 @app.route('/get_modes', methods=['GET'])
 def get_modes():
     return jsonify({'modes': ASSISTANT_MODES})
+
+@app.route('/save_chat', methods=['POST'])
+def save_chat():
+    """Save chat exchange to session after streaming"""
+    try:
+        data = request.get_json()
+        user_message = data.get('user_message', '')
+        assistant_response = data.get('assistant_response', '')
+        mode = data.get('mode', 'general')
+        
+        if not user_message or not assistant_response:
+            return jsonify({'error': 'Missing message data'}), 400
+        
+        if 'chat_history' not in session:
+            session['chat_history'] = []
+        
+        session['chat_history'].append({
+            'user': user_message,
+            'assistant': assistant_response,
+            'timestamp': datetime.now().isoformat(),
+            'mode': mode
+        })
+        session.modified = True
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error saving chat: {str(e)}'}), 500
 
 @app.route('/templates/<template_type>')
 def get_template(template_type):
