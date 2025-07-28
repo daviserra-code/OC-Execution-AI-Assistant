@@ -71,32 +71,39 @@ def get_session_id():
         session.modified = True
         
         # Create session in database
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                'INSERT INTO chat_sessions (session_id) VALUES (?)',
-                (session['user_session_id'],)
-            )
-            conn.commit()
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT INTO chat_sessions (session_id) VALUES (?)',
+                    (session['user_session_id'],)
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"Error creating session in database: {e}")
     
     return session['user_session_id']
 
 def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
     """Save a chat exchange to the database"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
-            VALUES (?, ?, ?, ?)
-        ''', (session_id, user_message, assistant_response, mode))
-        
-        # Update session last activity
-        cursor.execute('''
-            UPDATE chat_sessions 
-            SET last_activity = CURRENT_TIMESTAMP 
-            WHERE session_id = ?
-        ''', (session_id,))
-        conn.commit()
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
+                VALUES (?, ?, ?, ?)
+            ''', (session_id, user_message, assistant_response, mode))
+            
+            # Update session last activity
+            cursor.execute('''
+                UPDATE chat_sessions 
+                SET last_activity = CURRENT_TIMESTAMP 
+                WHERE session_id = ?
+            ''', (session_id,))
+            conn.commit()
+            print(f"Saved chat exchange for session {session_id[:8]}...")
+    except Exception as e:
+        print(f"Error saving chat exchange: {e}")
 
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
@@ -468,19 +475,7 @@ def chat_stream():
                         full_response += content
                         yield f"data: {json.dumps({'content': content})}\n\n"
                 
-                yield f"data: {json.dumps({'done': True})}\n\n"
-                
-                # Save to history after streaming - we need to update session outside the generator
-                with app.test_request_context():
-                    if 'chat_history' not in session:
-                        session['chat_history'] = []
-                    session['chat_history'].append({
-                        'user': user_message,
-                        'assistant': full_response,
-                        'timestamp': datetime.now().isoformat(),
-                        'mode': mode
-                    })
-                    session.modified = True
+                yield f"data: {json.dumps({'done': True, 'full_response': full_response})}\n\n"
                 
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -655,6 +650,40 @@ def get_session_info():
                 
     except Exception as e:
         return jsonify({'error': f'Error retrieving session info: {str(e)}'}), 500
+
+@app.route('/test_db', methods=['GET'])
+def test_db():
+    """Test database connectivity and show recent entries"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Test basic connectivity
+            cursor.execute('SELECT COUNT(*) as session_count FROM chat_sessions')
+            session_count = cursor.fetchone()['session_count']
+            
+            cursor.execute('SELECT COUNT(*) as exchange_count FROM chat_exchanges')
+            exchange_count = cursor.fetchone()['exchange_count']
+            
+            # Get recent exchanges
+            cursor.execute('''
+                SELECT session_id, user_message, assistant_response, timestamp, mode
+                FROM chat_exchanges 
+                ORDER BY timestamp DESC 
+                LIMIT 5
+            ''')
+            recent_exchanges = [dict(row) for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'database_path': DATABASE_PATH,
+                'session_count': session_count,
+                'exchange_count': exchange_count,
+                'recent_exchanges': recent_exchanges
+            })
+            
+    except Exception as e:
+        return jsonify({'error': f'Database test error: {str(e)}'}), 500
 
 @app.route('/delete_old_sessions', methods=['POST'])
 def delete_old_sessions():

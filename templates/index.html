@@ -983,6 +983,8 @@
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
             
+            console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
+            
             fetch('/save_chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -992,8 +994,18 @@
                     mode: mode
                 })
             })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Chat saved successfully');
+                    // Refresh session info
+                    loadSessionInfo();
+                } else {
+                    console.error('Error saving chat:', data.error);
+                }
+            })
             .catch(error => {
-                console.error('Error saving chat:', error);
+                console.error('Network error saving chat:', error);
             });
         }
 
