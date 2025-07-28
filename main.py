@@ -1,25 +1,19 @@
 
+from flask import Flask, render_template, request, jsonify, session
 import openai
 import os
 import sys
+import base64
+from werkzeug.utils import secure_filename
+import uuid
 
-openai.api_key = os.environ['OPENAI_API_KEY']
+app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
 
-if openai.api_key == "":
-    sys.stderr.write("""
-    You haven't set up your API key yet.
+openai.api_key = os.environ.get('OPENAI_API_KEY', '')
 
-    If you don't have an API key yet, visit:
-
-    https://platform.openai.com/signup
-
-    1. Make an account or sign in
-    2. Click "View API Keys" from the top right menu.
-    3. Click "Create new secret key"
-
-    Then, open the Secrets Tool and add OPENAI_API_KEY as a secret.
-    """)
-    exit(1)
+if not openai.api_key:
+    print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
 
 # Software Architecture Assistant System Prompt
 ARCHITECTURE_PROMPT = """You are a highly experienced and proactive Software Architecture Assistant specializing in modern software patterns, architectural decision-making, documentation, and stakeholder communication, as well as a coding assistant for Siemens Opcenter Execution Foundation, Process, and Discrete platforms.
@@ -60,48 +54,114 @@ ARCHITECTURE_PROMPT = """You are a highly experienced and proactive Software Arc
 
 Always adapt based on user context and role, ensuring clarity and relevance of recommendations."""
 
-def main():
-    print("🏗️  Software Architecture Assistant")
-    print("Specializing in modern software patterns, architectural decisions, and Opcenter development")
-    print("=" * 80)
-    
-    while True:
-        user_input = input("\n📝 Your question: ").strip()
-        
-        if user_input.lower() in ['quit', 'exit', 'bye']:
-            print("\n👋 Goodbye! Happy architecting!")
-            break
-            
-        if not user_input:
-            print("Please enter your architecture or development question.")
-            continue
-            
-        try:
-            print("\n🤔 Thinking...")
-            
-            response = openai.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": ARCHITECTURE_PROMPT
-                    },
-                    {
-                        "role": "user",
-                        "content": user_input
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=2500
-            )
-            
-            print(f"\n🏛️  Architecture Assistant:\n")
-            print(response.choices[0].message.content)
-            print("\n" + "─" * 80)
-            
-        except Exception as e:
-            print(f"\n❌ Error: {e}")
-            print("Please check your OpenAI API key and try again.")
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'py', 'js', 'html', 'css', 'json', 'xml'}
 
-if __name__ == "__main__":
-    main()
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def process_uploaded_file(file_path):
+    """Process uploaded file and return its content"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except UnicodeDecodeError:
+        # For binary files, return a description
+        return f"[Binary file: {os.path.basename(file_path)}]"
+    except Exception as e:
+        return f"[Error reading file: {str(e)}]"
+
+@app.route('/')
+def index():
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+    return render_template('index.html')
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.get_json()
+        user_message = data.get('message', '').strip()
+        
+        if not user_message:
+            return jsonify({'error': 'Message cannot be empty'}), 400
+        
+        if not openai.api_key:
+            return jsonify({'error': 'OpenAI API key not configured. Please add OPENAI_API_KEY to Secrets.'}), 500
+        
+        # Initialize chat history if not exists
+        if 'chat_history' not in session:
+            session['chat_history'] = []
+        
+        # Build messages for OpenAI
+        messages = [{"role": "system", "content": ARCHITECTURE_PROMPT}]
+        
+        # Add previous chat history
+        for chat in session['chat_history'][-10:]:  # Keep last 10 exchanges
+            messages.append({"role": "user", "content": chat['user']})
+            messages.append({"role": "assistant", "content": chat['assistant']})
+        
+        # Add current message
+        messages.append({"role": "user", "content": user_message})
+        
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2500
+        )
+        
+        assistant_response = response.choices[0].message.content
+        
+        # Save to chat history
+        session['chat_history'].append({
+            'user': user_message,
+            'assistant': assistant_response
+        })
+        session.modified = True
+        
+        return jsonify({'response': assistant_response})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error: {str(e)}'}), 500
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file selected'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(file_path)
+            
+            # Process the file content
+            file_content = process_uploaded_file(file_path)
+            
+            return jsonify({
+                'success': True,
+                'filename': filename,
+                'content': file_content[:1000] + ('...' if len(file_content) > 1000 else '')  # Preview
+            })
+        else:
+            return jsonify({'error': 'File type not allowed'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': f'Upload error: {str(e)}'}), 500
+
+@app.route('/clear_history', methods=['POST'])
+def clear_history():
+    session['chat_history'] = []
+    session.modified = True
+    return jsonify({'success': True})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
