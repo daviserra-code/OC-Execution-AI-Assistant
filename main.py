@@ -162,5 +162,12 @@ def clear_history():
     session.modified = True
     return jsonify({'success': True})
 
+@app.route('/get_prompt', methods=['GET'])
+def get_prompt():
+    try:
+        return jsonify({'prompt': ARCHITECTURE_PROMPT})
+    except Exception as e:
+        return jsonify({'error': f'Error retrieving prompt: {str(e)}'}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
