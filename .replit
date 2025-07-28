@@ -12,3 +12,15 @@ language = "python3"
 [deployment]
 run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
+
+[workflows]
+runButton = "Architecture Assistant"
+
+[[workflows.workflow]]
+name = "Architecture Assistant"
+author = 40913427
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
