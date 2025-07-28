@@ -715,7 +715,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadModes();
             initializeEventListeners();
-            mermaid.initialize({ startOnLoad: true });
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: 'default',
+                securityLevel: 'loose',
+                flowchart: {
+                    htmlLabels: true,
+                    useMaxWidth: true
+                }
+            });
         });
 
         function initializeEventListeners() {
@@ -926,7 +934,11 @@
                                     } else if (data.done) {
                                         hideStreamingIndicator();
                                         addMessageActions(messageDiv, fullResponse);
-                                        renderMermaidDiagrams();
+                                        
+                                        // Final render of Mermaid diagrams after streaming is complete
+                                        setTimeout(() => {
+                                            renderMermaidDiagrams();
+                                        }, 500);
                                         
                                         // Save chat history after streaming completes
                                         if (fullResponse) {
@@ -1084,8 +1096,12 @@
 
         function formatMessage(content) {
             // Enhanced markdown-like formatting
-            return content
-                .replace(/```mermaid\n([\s\S]*?)```/g, '<div class="mermaid">$1</div>')
+            let formatted = content
+                .replace(/```mermaid\n([\s\S]*?)```/g, function(match, diagram) {
+                    const cleanDiagram = diagram.trim();
+                    const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                    return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
+                })
                 .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
                 .replace(/`([^`]+)`/g, '<code>$1</code>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -1095,11 +1111,25 @@
                 .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
                 .replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>')
                 .replace(/\n/g, '<br>');
+            
+            // Process Mermaid diagrams after a short delay
+            setTimeout(() => {
+                renderMermaidDiagrams();
+            }, 100);
+            
+            return formatted;
         }
 
         function renderMermaidDiagrams() {
             // Re-initialize Mermaid for new diagrams
-            mermaid.init(undefined, document.querySelectorAll('.mermaid:not([data-processed])'));
+            try {
+                const mermaidElements = document.querySelectorAll('.mermaid:not([data-processed])');
+                if (mermaidElements.length > 0) {
+                    mermaid.init(undefined, mermaidElements);
+                }
+            } catch (error) {
+                console.warn('Mermaid rendering error:', error);
+            }
         }
 
         function showStreamingIndicator() {
