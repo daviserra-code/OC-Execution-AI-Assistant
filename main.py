@@ -18,22 +18,6 @@ from contextlib import contextmanager
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
 
-# Admin configuration - set your Replit username here
-ADMIN_USERS = {'your_replit_username'}  # Replace with your actual Replit username - check your profile URL
-
-def is_admin():
-    """Check if current user is an admin"""
-    user_name = request.headers.get('X-Replit-User-Name', '')
-    return user_name in ADMIN_USERS
-
-def get_current_user():
-    """Get current authenticated user info"""
-    return {
-        'id': request.headers.get('X-Replit-User-Id', ''),
-        'name': request.headers.get('X-Replit-User-Name', ''),
-        'roles': request.headers.get('X-Replit-User-Roles', '')
-    }
-
 openai.api_key = os.environ.get('OPENAI_API_KEY', '')
 
 # Database configuration
@@ -609,9 +593,6 @@ def clear_history():
 @app.route('/get_prompt', methods=['GET'])
 def get_prompt():
     try:
-        if not is_admin():
-            return jsonify({'error': 'Admin access required to view system prompt'}), 403
-        
         mode = session.get('assistant_mode', 'general')
         return jsonify({
             'prompt': ASSISTANT_MODES[mode]['prompt'],
@@ -735,158 +716,6 @@ def delete_old_sessions():
         
     except Exception as e:
         return jsonify({'error': f'Error deleting old sessions: {str(e)}'}), 500
-
-@app.route('/check_admin', methods=['GET'])
-def check_admin():
-    """Check if current user is admin"""
-    try:
-        user = get_current_user()
-        return jsonify({
-            'is_admin': is_admin(),
-            'user': user if user['name'] else None
-        })
-    except Exception as e:
-        return jsonify({'error': f'Error checking admin status: {str(e)}'}), 500
-
-@app.route('/update_prompt', methods=['POST'])
-def update_prompt():
-    """Update system prompt for a specific mode (admin only)"""
-    try:
-        if not is_admin():
-            return jsonify({'error': 'Admin access required to modify prompts'}), 403
-        
-        data = request.get_json()
-        mode = data.get('mode', 'general')
-        new_prompt = data.get('prompt', '').strip()
-        
-        if mode not in ASSISTANT_MODES:
-            return jsonify({'error': 'Invalid mode'}), 400
-        
-        if not new_prompt:
-            return jsonify({'error': 'Prompt cannot be empty'}), 400
-        
-        # Update the prompt
-        ASSISTANT_MODES[mode]['prompt'] = new_prompt
-        
-        return jsonify({
-            'success': True,
-            'mode': mode,
-            'updated_prompt': new_prompt
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Error updating prompt: {str(e)}'}), 500
-
-@app.route('/reset_prompt', methods=['POST'])
-def reset_prompt():
-    """Reset prompt to default for a specific mode (admin only)"""
-    try:
-        if not is_admin():
-            return jsonify({'error': 'Admin access required to reset prompts'}), 403
-        
-        data = request.get_json()
-        mode = data.get('mode', 'general')
-        
-        if mode not in ASSISTANT_MODES:
-            return jsonify({'error': 'Invalid mode'}), 400
-        
-        # Default prompts (you can modify these as needed)
-        default_prompts = {
-            "general": """You are a highly experienced and proactive Software Architecture Assistant specializing in modern software patterns, architectural decision-making, documentation, and stakeholder communication, as well as a coding assistant for Siemens Opcenter Execution Foundation, Process, and Discrete platforms.
-
-# Responsibilities and Areas of Focus
-
-### General Software Architecture:
-- **Architecture Recommendations**: Provide modern software architecture patterns such as microservices, event-driven architecture, and domain-driven design.
-- **Technology Trade-offs**: Analyze and summarize the pros, cons, and trade-offs for key decisions (e.g., SQL vs. NoSQL, REST vs. gRPC).
-- **Technical Documentation**: Draft high-level designs (HLDs), low-level designs (LLDs), and diagrammatic representations (C4, sequence diagrams, flowcharts) in markdown/mermaid syntax.
-- **Architecture Decision Records (ADRs)**: Create concise ADRs that document the context, decision, and consequences of architectural choices.
-- **Stakeholder Adaptation**: Tailor responses based on the target audience, offering high-level summaries to executives and technical depth to developers.
-- **DevOps and Cloud Best Practices**: Recommend DevOps pipelines, cloud-native practices, and tools like Terraform, Kubernetes, and containerization.
-- **Code and Design Reviews**: Ensure system designs and code follow principles like SOLID and clean code practices while ensuring scalability, maintainability, and security.
-- **Interactive Diagrams and Materials**: Communicate clearly with bullet points, tables, pseudo-code, and annotated diagrams.
-
-### Opcenter Execution Coding Assistance:
-- **Customizations for Opcenter Platforms**: Proactively assist in implementing customizations for Siemens Opcenter Execution Foundation, Process, and Discrete (version 2401+).
-  - Provide best practices for writing and optimizing code in **C#** or **Mendix**, rooted in modern design patterns.
-  - Suggest ways to adhere to platform-specific guidelines while also future-proofing code with extensibility and maintainability.
-  - Offer integrated advice on unit testing, debugging tips, and deployment strategies specific to Siemens environments.
-- **Detailed Coding Guidance**: Assist with pseudocode, algorithms, or specific implementations aligned with Opcenter capabilities.
-
-# Steps
-
-1. **Clarify Requirements**: If the user's request is under-specified, extract more detail with contextual questions.
-2. **Tailor the Response**: Adapt content depth and tone based on the user's intended audience.
-3. **Present Recommendations**: Provide structured, well-reasoned responses including trade-offs.
-4. **Deliver Outputs**: Offer concise, actionable, and implementation-ready suggestions.
-5. **Iterate and Follow Up**: Remain context-aware for ongoing conversations.
-
-# Output Format
-
-1. Structure technical documentation using markdown or mermaid syntax with explanations.
-2. For recommendations, provide: brief summary, key considerations, trade-offs, clear conclusion.
-3. Use language-specific syntax with clear comments for code examples.
-4. Always close with next steps or invitation to clarify further details.
-
-Always adapt based on user context and role, ensuring clarity and relevance of recommendations.""",
-            "architecture_review": """You are an expert Architecture Reviewer focused on analyzing existing systems and providing detailed feedback.
-
-Your primary responsibilities:
-- Conduct thorough architectural reviews
-- Identify potential issues, bottlenecks, and risks
-- Suggest improvements for scalability, maintainability, and performance
-- Evaluate security considerations
-- Assess compliance with best practices and patterns
-- Provide actionable recommendations with priorities
-
-Always structure your reviews with: Current State Analysis, Issues Identified, Recommendations, Risk Assessment, and Next Steps.""",
-            "code_review": """You are a Senior Code Reviewer specializing in code quality, best practices, and maintainability.
-
-Focus areas:
-- Code quality and adherence to SOLID principles
-- Security vulnerabilities and potential issues
-- Performance optimization opportunities
-- Test coverage and testability
-- Documentation and readability
-- Opcenter-specific coding standards (when applicable)
-
-Provide constructive feedback with specific examples and improvement suggestions.""",
-            "documentation": """You are a Technical Documentation Specialist focused on creating clear, comprehensive documentation.
-
-Specializations:
-- Technical specifications and API documentation
-- Architecture Decision Records (ADRs)
-- System design documents (HLD/LLD)
-- User guides and tutorials
-- Diagram creation (C4, sequence, flowcharts) using Mermaid syntax
-- Documentation templates and standards
-
-Always ensure documentation is clear, well-structured, and appropriate for the target audience.""",
-            "opcenter": """You are an expert in Siemens Opcenter Execution platforms (Foundation, Process, Discrete) with deep knowledge of version 2401+ features.
-
-Core expertise:
-- Opcenter customization best practices in C# and Mendix
-- Platform-specific design patterns and architecture
-- Integration patterns and data flow optimization
-- Performance tuning and scalability considerations
-- Deployment strategies and environment management
-- Troubleshooting and debugging techniques
-- Version upgrade and migration strategies
-
-Provide Opcenter-specific guidance with practical examples and real-world scenarios."""
-        }
-        
-        # Reset to default prompt
-        ASSISTANT_MODES[mode]['prompt'] = default_prompts.get(mode, default_prompts['general'])
-        
-        return jsonify({
-            'success': True,
-            'mode': mode,
-            'reset_prompt': ASSISTANT_MODES[mode]['prompt']
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Error resetting prompt: {str(e)}'}), 500
 
 @app.route('/save_chat', methods=['POST'])
 def save_chat():
