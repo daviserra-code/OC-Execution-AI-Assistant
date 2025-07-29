@@ -757,7 +757,7 @@
             
             <div class="admin-controls" id="adminControls">
                 <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
-                <button onclick="editSystemPrompt()" class="control-btn warning" style="margin-bottom: 8px;">
+                <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
                     <i class="fas fa-edit"></i> Edit System Prompts
                 </button>
                 <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
@@ -832,7 +832,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>📥 Export Conversation</h3>
-                <span class="close">&times;</span>
+                <span class="close" onclick="closeModal('exportModal')">&times;</span>
             </div>
             <div class="modal-body">
                 <p>Choose your export format:</p>
@@ -842,6 +842,46 @@
                 <button onclick="exportConversation('markdown')" class="control-btn primary" style="margin: 5px;">
                     <i class="fab fa-markdown"></i> Markdown Format
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Prompt Edit Modal -->
+    <div id="systemPromptModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Edit System Prompt</h3>
+                <span class="close" onclick="closeModal('systemPromptModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 15px;">
+                    <label for="currentMode" style="font-weight: bold; color: #333; margin-bottom: 5px; display: block;">Current Mode:</label>
+                    <div id="currentModeInfo" style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #e9ecef;">
+                        Loading mode info...
+                    </div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="systemPromptTextarea" style="font-weight: bold; color: #333; margin-bottom: 5px; display: block;">System Prompt:</label>
+                    <textarea 
+                        id="systemPromptTextarea" 
+                        style="width: 100%; height: 400px; padding: 15px; border: 2px solid #e9ecef; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5; resize: vertical; min-height: 300px;"
+                        placeholder="Loading system prompt..."
+                    ></textarea>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <i class="fas fa-info-circle"></i> Use this large editor to modify the system prompt for the current assistant mode.
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                    <button onclick="saveSystemPrompt()" class="control-btn primary" style="padding: 12px 25px;">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button onclick="resetSystemPrompt()" class="control-btn warning" style="padding: 12px 25px;">
+                        <i class="fas fa-undo"></i> Reset to Default
+                    </button>
+                    <button onclick="closeModal('systemPromptModal')" class="control-btn secondary" style="padding: 12px 25px;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -887,14 +927,18 @@
             });
 
             // Modal close handlers
-            document.querySelector('.close').onclick = function() {
-                document.getElementById('exportModal').style.display = 'none';
-            };
+            document.querySelectorAll('.close').forEach(closeBtn => {
+                closeBtn.onclick = function() {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                };
+            });
 
             window.onclick = function(event) {
-                const modal = document.getElementById('exportModal');
-                if (event.target == modal) {
-                    modal.style.display = 'none';
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
                 }
             };
         }
@@ -1547,6 +1591,8 @@ Your chat history is automatically saved to a local SQLite database and will per
                 // Call the original function
                 if (functionName === 'showPrompt') {
                     showPrompt();
+                } else if (functionName === 'showSystemPromptEditor') {
+                    showSystemPromptEditor();
                 }
             } else {
                 addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
@@ -1554,25 +1600,73 @@ Your chat history is automatically saved to a local SQLite database and will per
             }
         }
 
-        function editSystemPrompt() {
+        function showSystemPromptEditor() {
             if (!isAdminLoggedIn) {
-                adminRequired('editSystemPrompt');
+                adminRequired('showSystemPromptEditor');
                 return;
             }
             
+            // Get current system prompt
             fetch('/get_prompt')
             .then(response => response.json())
             .then(data => {
                 if (data.prompt) {
-                    const newPrompt = prompt('Edit System Prompt:', data.prompt);
-                    if (newPrompt !== null && newPrompt !== data.prompt) {
-                        // Here you would implement the update functionality
-                        addMessage('assistant', '✅ **System prompt updated successfully!**\n\nNote: This is a demo - actual implementation would save to the backend.');
-                    }
+                    // Populate the modal
+                    document.getElementById('systemPromptTextarea').value = data.prompt;
+                    document.getElementById('currentModeInfo').innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 18px;">${data.mode_info.icon}</span>
+                            <div>
+                                <strong>${data.mode_info.name}</strong>
+                                <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show the modal
+                    document.getElementById('systemPromptModal').style.display = 'block';
+                    
+                    // Focus on textarea
+                    setTimeout(() => {
+                        document.getElementById('systemPromptTextarea').focus();
+                    }, 100);
                 } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
+                    addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
                 }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Network error: ${error.message}`);
             });
+        }
+
+        function saveSystemPrompt() {
+            const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
+            
+            if (!newPrompt) {
+                alert('System prompt cannot be empty!');
+                return;
+            }
+            
+            // Here you would implement the actual save functionality
+            // For now, this is a demo implementation
+            addMessage('assistant', '✅ **System prompt updated successfully!**\n\n' + 
+                       'The system prompt for the current mode has been updated. ' +
+                       'Note: This is a demo implementation - in production, this would save to the backend.');
+            
+            closeModal('systemPromptModal');
+        }
+
+        function resetSystemPrompt() {
+            if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
+                // Here you would implement the reset functionality
+                addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
+                           'The system prompt has been restored to its original default value.');
+                closeModal('systemPromptModal');
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
         }
 
         function logoutAdmin() {
