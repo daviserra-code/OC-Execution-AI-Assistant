@@ -552,6 +552,109 @@
             color: #000;
         }
 
+        .admin-login-panel {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+        }
+
+        .admin-login-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .admin-login-content h3 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .login-field {
+            margin-bottom: 20px;
+        }
+
+        .login-field label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .login-field input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .login-field input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .login-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        .login-btn, .cancel-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .login-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .cancel-btn {
+            background: #6c757d;
+            color: white;
+        }
+
+        .login-btn:hover, .cancel-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .admin-controls {
+            display: none;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .admin-controls h4 {
+            margin-bottom: 10px;
+            color: #856404;
+            font-size: 12px;
+        }
+
         @media (max-width: 1024px) {
             .sidebar {
                 width: 300px;
@@ -576,6 +679,31 @@
     </style>
 </head>
 <body>
+    <!-- Admin Login Panel -->
+    <div id="adminLoginPanel" class="admin-login-panel">
+        <div class="admin-login-content">
+            <h3><i class="fas fa-shield-alt"></i> Administrator Login</h3>
+            <form id="adminLoginForm">
+                <div class="login-field">
+                    <label for="adminUsername">Username:</label>
+                    <input type="text" id="adminUsername" name="username" required>
+                </div>
+                <div class="login-field">
+                    <label for="adminPassword">Password:</label>
+                    <input type="password" id="adminPassword" name="password" required>
+                </div>
+                <div class="login-actions">
+                    <button type="submit" class="login-btn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                    <button type="button" class="cancel-btn" onclick="hideAdminLogin()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="container">
         <div class="sidebar">
             <div class="logo">
@@ -627,8 +755,18 @@
                 </div>
             </div>
             
+            <div class="admin-controls" id="adminControls">
+                <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
+                <button onclick="editSystemPrompt()" class="control-btn warning" style="margin-bottom: 8px;">
+                    <i class="fas fa-edit"></i> Edit System Prompts
+                </button>
+                <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout Admin
+                </button>
+            </div>
+
             <div class="controls">
-                <button onclick="showPrompt()" class="control-btn primary">
+                <button onclick="adminRequired('showPrompt')" class="control-btn primary">
                     <i class="fas fa-eye"></i> View System Prompt
                 </button>
                 <button onclick="showChatHistory()" class="control-btn secondary">
@@ -642,6 +780,9 @@
                 </button>
                 <button onclick="clearHistory()" class="control-btn danger">
                     <i class="fas fa-trash"></i> Clear Chat History
+                </button>
+                <button onclick="showAdminLogin()" class="control-btn warning">
+                    <i class="fas fa-shield-alt"></i> Admin Login
                 </button>
             </div>
         </div>
@@ -1388,6 +1529,77 @@ Your chat history is automatically saved to a local SQLite database and will per
                 addMessage('assistant', `❌ Error loading session info: ${error.message}`);
             });
         }
+
+        // Admin authentication
+        let isAdminLoggedIn = false;
+
+        function showAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'block';
+        }
+
+        function hideAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'none';
+            document.getElementById('adminLoginForm').reset();
+        }
+
+        function adminRequired(functionName) {
+            if (isAdminLoggedIn) {
+                // Call the original function
+                if (functionName === 'showPrompt') {
+                    showPrompt();
+                }
+            } else {
+                addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
+                showAdminLogin();
+            }
+        }
+
+        function editSystemPrompt() {
+            if (!isAdminLoggedIn) {
+                adminRequired('editSystemPrompt');
+                return;
+            }
+            
+            fetch('/get_prompt')
+            .then(response => response.json())
+            .then(data => {
+                if (data.prompt) {
+                    const newPrompt = prompt('Edit System Prompt:', data.prompt);
+                    if (newPrompt !== null && newPrompt !== data.prompt) {
+                        // Here you would implement the update functionality
+                        addMessage('assistant', '✅ **System prompt updated successfully!**\n\nNote: This is a demo - actual implementation would save to the backend.');
+                    }
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            });
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('adminControls').style.display = 'none';
+            addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
+        }
+
+        // Admin login form handler
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('adminUsername').value;
+                const password = document.getElementById('adminPassword').value;
+                
+                // Simple demo authentication (in production, this should be server-side)
+                if (username === 'admin' && password === 'admin123') {
+                    isAdminLoggedIn = true;
+                    document.getElementById('adminControls').style.display = 'block';
+                    hideAdminLogin();
+                    addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
+                } else {
+                    alert('Invalid credentials. Try username: admin, password: admin123');
+                }
+            });
+        });
     </script>
 </body>
 </html>
