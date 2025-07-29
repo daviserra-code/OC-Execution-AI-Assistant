@@ -675,6 +675,16 @@
                 max-width: 95%;
             }
         }
+
+        #conversationStats {
+            display: none;
+            background: #f0f7ff;
+            border: 1px solid #b9d9ea;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -761,6 +771,18 @@
                 </button>
                 <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
                     <i class="fas fa-sign-out-alt"></i> Logout Admin
+                </button>
+            </div>
+
+            <div id="conversationStats" style="display: none; background: #f0f7ff; border: 1px solid #b9d9ea; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                    <i class="fas fa-chart-bar" style="color: #3498db; margin-right: 5px;"></i>
+                    <strong>Conversation Statistics</strong>
+                </div>
+                <div>Words Exchanged: <span id="wordCount">0</span></div>
+                <div>Avg. Response Time: <span id="avgResponseTime">0</span>s</div>
+                <button onclick="showConversationStats()" class="control-btn secondary" style="margin-top: 8px; font-size: 10px;">
+                    <i class="fas fa-chart-line"></i> Show Detailed Stats
                 </button>
             </div>
 
@@ -889,52 +911,18 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
-        let isAdminLoggedIn = false;
-
-        // Global functions - accessible from HTML onclick handlers
-        window.showAdminLogin = function() {
-            document.getElementById('adminLoginPanel').style.display = 'block';
+        let conversationStats = {
+            startTime: Date.now(),
+            responseCount: 0,
+            totalResponseTime: 0,
+            totalWords: 0
         };
 
-        window.hideAdminLogin = function() {
-            document.getElementById('adminLoginPanel').style.display = 'none';
-            document.getElementById('adminLoginForm').reset();
-        };
-
-        window.adminRequired = function(functionName) {
-            if (isAdminLoggedIn) {
-                if (functionName === 'showPrompt') {
-                    showPrompt();
-                } else if (functionName === 'showSystemPromptEditor') {
-                    showSystemPromptEditor();
-                }
-            } else {
-                addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
-                showAdminLogin();
-            }
-        };
-
-        window.showPrompt = function() {
-            fetch('/get_prompt')
-            .then(response => response.json())
-            .then(data => {
-                if (data.prompt) {
-                    const customInfo = data.is_custom ? ' (Custom)' : ' (Default)';
-                    addMessage('assistant', `**🤖 System Prompt (${data.mode_info.name} Mode${customInfo}):**\n\n${data.prompt}`);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            });
-        };
-
-        window.showChatHistory = function() {
-            fetch('/get_history')
-            .then(response => response.json())
-            .then(data => {
-                if (data.history) {
-                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-
-                    ifmermaid\n([\s\S]*?)```/g, function(match, diagram) {
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadModes();
+            initializeEventListeners();
+            loadmermaid\n([\s\S]*?)```/g, function(match, diagram) {
                     const cleanDiagram = diagram.trim();
                     const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
                     return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
