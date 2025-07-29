@@ -1,3 +1,7 @@
+The code is updated to persist custom prompts in the database and enhance admin authentication.
+```
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -675,16 +679,6 @@
                 max-width: 95%;
             }
         }
-
-        #conversationStats {
-            display: none;
-            background: #f0f7ff;
-            border: 1px solid #b9d9ea;
-            border-radius: 10px;
-            padding: 10px;
-            margin-bottom: 15px;
-            font-size: 11px;
-        }
     </style>
 </head>
 <body>
@@ -771,18 +765,6 @@
                 </button>
                 <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
                     <i class="fas fa-sign-out-alt"></i> Logout Admin
-                </button>
-            </div>
-
-            <div id="conversationStats" style="display: none; background: #f0f7ff; border: 1px solid #b9d9ea; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
-                <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                    <i class="fas fa-chart-bar" style="color: #3498db; margin-right: 5px;"></i>
-                    <strong>Conversation Statistics</strong>
-                </div>
-                <div>Words Exchanged: <span id="wordCount">0</span></div>
-                <div>Avg. Response Time: <span id="avgResponseTime">0</span>s</div>
-                <button onclick="showConversationStats()" class="control-btn secondary" style="margin-top: 8px; font-size: 10px;">
-                    <i class="fas fa-chart-line"></i> Show Detailed Stats
                 </button>
             </div>
 
@@ -911,18 +893,412 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
-        let conversationStats = {
-            startTime: Date.now(),
-            responseCount: 0,
-            totalResponseTime: 0,
-            totalWords: 0
-        };
 
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             loadModes();
             initializeEventListeners();
-            loadmermaid\n([\s\S]*?)```/g, function(match, diagram) {
+            loadSessionInfo();
+            loadInitialChatHistory();
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: 'default',
+                securityLevel: 'loose',
+                flowchart: {
+                    htmlLabels: true,
+                    useMaxWidth: true
+                }
+            });
+        });
+
+        function initializeEventListeners() {
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            document.getElementById('fileInput').addEventListener('change', function(e) {
+                handleFileUpload(e);
+            });
+
+            // Auto-resize textarea
+            document.getElementById('messageInput').addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+            });
+
+            // Modal close handlers
+            document.querySelectorAll('.close').forEach(closeBtn => {
+                closeBtn.onclick = function() {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                };
+            });
+
+            window.onclick = function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            };
+        }
+
+        function loadModes() {
+            fetch('/get_modes')
+            .then(response => response.json())
+            .then(data => {
+                availableModes = data.modes;
+                const modeButtons = document.getElementById('modeButtons');
+                modeButtons.innerHTML ='';
+
+                Object.keys(availableModes).forEach(modeKey => {
+                    const mode = availableModes[modeKey];
+                    const button = document.createElement('button');
+                    button.className = 'mode-btn';
+                    button.setAttribute('data-mode', modeKey);
+                    button.innerHTML = `${mode.icon} ${mode.name}`;
+                    button.onclick = () => setAssistantMode(modeKey);
+                    modeButtons.appendChild(button);
+                });
+
+                // Set general mode as active by default
+                setAssistantMode('general');
+            });
+        }
+
+        function setAssistantMode(mode) {
+            fetch('/set_mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update UI
+                    document.querySelectorAll('.mode-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+
+                    const modeDisplay = document.getElementById('currentModeDisplay');
+                    modeDisplay.innerHTML = `${data.mode_info.icon} ${data.mode_info.name}`;
+
+                    addMessage('assistant', `🔄 **Mode switched to: ${data.mode_info.name}**\n\nI'm now optimized for ${data.mode_info.name.toLowerCase()} tasks. How can I help you?`);
+                }
+            });
+        }
+
+        function handleFileUpload(event) {
+            const files = event.target.files;
+            const preview = document.getElementById('filePreview');
+
+            if (files.length > 0) {
+                preview.innerHTML = '';
+
+                Array.from(files).forEach(file => {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'file-item';
+                            fileItem.innerHTML = `
+                                <div class="file-name">📄 ${data.original_name}</div>
+                                <div class="file-content">${data.content}</div>
+                            `;
+                            preview.appendChild(fileItem);
+                        } else {
+                            const errorItem = document.createElement('div');
+                            errorItem.className = 'error';
+                            errorItem.innerHTML = `<strong>❌ ${file.name}</strong><br>${data.error}`;
+                            preview.appendChild(errorItem);
+                        }
+                    })
+                    .catch(error => {
+                        const errorItem = document.createElement('div');
+                        errorItem.className = 'error';
+                        errorItem.innerHTML = `<strong>❌ ${file.name}</strong><br>Upload failed: ${error.message}`;
+                        preview.appendChild(errorItem);
+                    });
+                });
+            }
+        }
+
+        function loadTemplate(templateType) {
+            fetch(`/templates/${templateType}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
+                    document.getElementById('messageInput').style.height = 'auto';
+                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading template: ${error.message}`);
+            });
+        }
+
+        function sendMessage(regenerate = false) {
+            if (isLoading) return;
+
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message && !regenerate) return;
+
+            if (!regenerate) {
+                addMessage('user', message);
+                input.value = '';
+                input.style.height = 'auto';
+            }
+
+            showStreamingIndicator();
+
+            // Use regular chat for regeneration, streaming for new messages
+            if (regenerate) {
+                regularChat(message, true);
+            } else {
+                streamingChat(message);
+            }
+        }
+
+        function streamingChat(message) {
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            // Add placeholder message for streaming
+            const messageDiv = addMessage('assistant', '', true);
+            const contentDiv = messageDiv.querySelector('.message-content');
+
+            fetch('/chat_stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+
+                function readStream() {
+                    return reader.read().then(({ done, value }) => {
+                        if (done) {
+                            hideStreamingIndicator();
+                            addMessageActions(messageDiv, fullResponse);
+                            renderMermaidDiagrams();
+
+                            // Save chat history after streaming completes
+                            if (fullResponse) {
+                                saveChatToSession(message, fullResponse);
+                            }
+                            return;
+                        }
+
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    if (data.content) {
+                                        fullResponse += data.content;
+                                        contentDiv.innerHTML = formatMessage(fullResponse);
+                                        scrollToBottom();
+                                    } else if (data.error) {
+                                        contentDiv.innerHTML = `❌ Error: ${data.error}`;
+                                        hideStreamingIndicator();
+                                        return;
+                                    } else if (data.done) {
+                                        hideStreamingIndicator();
+                                        addMessageActions(messageDiv, fullResponse);
+
+                                        // Final render of Mermaid diagrams after streaming is complete
+                                        setTimeout(() => {
+                                            renderMermaidDiagrams();
+                                        }, 500);
+
+                                        // Save chat history after streaming completes
+                                        if (fullResponse) {
+                                            saveChatToSession(message, fullResponse);
+                                        }
+                                        return;
+                                    }
+                                } catch (e) {
+                                    // Ignore parsing errors for incomplete JSON
+                                }
+                            }
+                        }
+
+                        return readStream();
+                    });
+                }
+
+                return readStream();
+            })
+            .catch(error => {
+                hideStreamingIndicator();
+                contentDiv.innerHTML = `❌ Network error: ${error.message}`;
+            });
+        }
+
+        function saveChatToSession(userMessage, assistantResponse) {
+            // Get current mode from UI
+            const activeMode = document.querySelector('.mode-btn.active');
+            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+
+            console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
+
+            fetch('/save_chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_message: userMessage,
+                    assistant_response: assistantResponse,
+                    mode: mode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Chat saved successfully');
+                    // Refresh session info
+                    loadSessionInfo();
+                } else {
+                    console.error('Error saving chat:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Network error saving chat:', error);
+            });
+        }
+
+        function regularChat(message, regenerate = false) {
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message, regenerate: regenerate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideStreamingIndicator();
+                if (data.error) {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                } else {
+                    const messageDiv = addMessage('assistant', data.response);
+                    addMessageActions(messageDiv, data.response);
+                    if (data.cached) {
+                        addCachedIndicator(messageDiv);
+                    }
+                    renderMermaidDiagrams();
+                }
+            })
+            .catch(error => {
+                hideStreamingIndicator();
+                addMessage('assistant', `❌ Network error: ${error.message}`);
+            });
+        }
+
+        function addMessage(sender, content, isPlaceholder = false) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            currentMessageIndex++;
+            messageDiv.setAttribute('data-message-id', currentMessageIndex);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            if (!isPlaceholder) {
+                contentDiv.innerHTML = formatMessage(content);
+            }
+
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+
+            scrollToBottom();
+            return messageDiv;
+        }
+
+        function addMessageActions(messageDiv, content) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+
+            if (messageDiv.classList.contains('assistant')) {
+                actionsDiv.innerHTML = `
+                    <button class="action-btn regenerate" onclick="regenerateResponse(${messageDiv.getAttribute('data-message-id')})">
+                        <i class="fas fa-redo"></i> Regenerate
+                    </button>
+                    <button class="action-btn copy" onclick="copyToClipboard('${btoa(encodeURIComponent(content))}')">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                `;
+            } else {
+                actionsDiv.innerHTML = `
+                    <button class="action-btn copy" onclick="copyToClipboard('${btoa(encodeURIComponent(content))}')">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                `;
+            }
+
+            messageDiv.appendChild(actionsDiv);
+        }
+
+        function addCachedIndicator(messageDiv) {
+            const indicator = document.createElement('div');
+            indicator.style.cssText = 'font-size: 10px; color: #28a745; margin-top: 5px; opacity: 0.8;';
+            indicator.innerHTML = '<i class="fas fa-bolt"></i> Cached response';
+            messageDiv.appendChild(indicator);
+        }
+
+        function regenerateResponse(messageId) {
+            // Find the message and regenerate
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageDiv) {
+                // Remove this and subsequent messages
+                let nextSibling = messageDiv.nextElementSibling;
+                while (nextSibling) {
+                    const toRemove = nextSibling;
+                    nextSibling = nextSibling.nextElementSibling;
+                    toRemove.remove();
+                }
+                messageDiv.remove();
+
+                // Regenerate the response
+                sendMessage(true);
+            }
+        }
+
+        function copyToClipboard(encodedContent) {
+            const content = decodeURIComponent(atob(encodedContent));
+            navigator.clipboard.writeText(content).then(() => {
+                // Show temporary feedback
+                const feedback = document.createElement('div');
+                feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 10px; border-radius: 5px; z-index: 1000;';
+                feedback.textContent = 'Copied to clipboard!';
+                document.body.appendChild(feedback);
+                setTimeout(() => feedback.remove(), 2000);
+            });
+        }
+
+        function formatMessage(content) {
+            // Enhanced markdown-like formatting
+            let formatted = content
+                .replace(/```mermaid\n([\s\S]*?)```/g, function(match, diagram) {
                     const cleanDiagram = diagram.trim();
                     const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
                     return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
