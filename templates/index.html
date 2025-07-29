@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -665,13 +664,13 @@
             .container {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 height: auto;
                 max-height: 50vh;
             }
-            
+
             .message-content {
                 max-width: 95%;
             }
@@ -710,14 +709,14 @@
                 <h1>🏗️ Architecture Assistant</h1>
                 <p>Advanced Software Architecture & Opcenter Expert</p>
             </div>
-            
+
             <div class="mode-selector">
                 <h3><i class="fas fa-cog"></i> Assistant Mode</h3>
                 <div class="mode-buttons" id="modeButtons">
                     <!-- Modes will be populated by JavaScript -->
                 </div>
             </div>
-            
+
             <div class="upload-section">
                 <h3><i class="fas fa-upload"></i> Upload Files</h3>
                 <div class="file-input-wrapper">
@@ -731,7 +730,7 @@
                     Supports: Code files, Documents, Images, etc.
                 </p>
             </div>
-            
+
             <div class="templates-section">
                 <h3><i class="fas fa-file-alt"></i> Quick Templates</h3>
                 <button class="template-btn" onclick="loadTemplate('adr')">
@@ -744,7 +743,7 @@
                     👨‍💻 Code Review Checklist
                 </button>
             </div>
-            
+
             <div class="session-info" style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
                 <div style="display: flex; align-items: center; margin-bottom: 5px;">
                     <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
@@ -754,7 +753,7 @@
                     Loading session info...
                 </div>
             </div>
-            
+
             <div class="admin-controls" id="adminControls">
                 <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
                 <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
@@ -786,7 +785,7 @@
                 </button>
             </div>
         </div>
-        
+
         <div class="chat-container">
             <div class="chat-header">
                 <div>
@@ -799,11 +798,11 @@
                     </div>
                 </div>
             </div>
-            
+
             <div id="chatMessages" class="chat-messages">
                 <!-- Chat history will be loaded here -->
             </div>
-            
+
             <div class="input-container">
                 <div class="input-wrapper">
                     <textarea 
@@ -890,705 +889,20 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
-        
-        // Initialize the app
-        document.addEventListener('DOMContentLoaded', function() {
-            loadModes();
-            initializeEventListeners();
-            loadSessionInfo();
-            loadInitialChatHistory();
-            mermaid.initialize({ 
-                startOnLoad: false,
-                theme: 'default',
-                securityLevel: 'loose',
-                flowchart: {
-                    htmlLabels: true,
-                    useMaxWidth: true
-                }
-            });
-        });
-
-        function initializeEventListeners() {
-            document.getElementById('messageInput').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-
-            document.getElementById('fileInput').addEventListener('change', function(e) {
-                handleFileUpload(e);
-            });
-
-            // Auto-resize textarea
-            document.getElementById('messageInput').addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 150) + 'px';
-            });
-
-            // Modal close handlers
-            document.querySelectorAll('.close').forEach(closeBtn => {
-                closeBtn.onclick = function() {
-                    const modal = this.closest('.modal');
-                    if (modal) {
-                        modal.style.display = 'none';
-                    }
-                };
-            });
-
-            window.onclick = function(event) {
-                if (event.target.classList.contains('modal')) {
-                    event.target.style.display = 'none';
-                }
-            };
-        }
-
-        function loadModes() {
-            fetch('/get_modes')
-            .then(response => response.json())
-            .then(data => {
-                availableModes = data.modes;
-                const modeButtons = document.getElementById('modeButtons');
-                modeButtons.innerHTML = '';
-                
-                Object.keys(availableModes).forEach(modeKey => {
-                    const mode = availableModes[modeKey];
-                    const button = document.createElement('button');
-                    button.className = 'mode-btn';
-                    button.setAttribute('data-mode', modeKey);
-                    button.innerHTML = `${mode.icon} ${mode.name}`;
-                    button.onclick = () => setAssistantMode(modeKey);
-                    modeButtons.appendChild(button);
-                });
-                
-                // Set general mode as active by default
-                setAssistantMode('general');
-            });
-        }
-
-        function setAssistantMode(mode) {
-            fetch('/set_mode', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update UI
-                    document.querySelectorAll('.mode-btn').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-                    
-                    const modeDisplay = document.getElementById('currentModeDisplay');
-                    modeDisplay.innerHTML = `${data.mode_info.icon} ${data.mode_info.name}`;
-                    
-                    addMessage('assistant', `🔄 **Mode switched to: ${data.mode_info.name}**\n\nI'm now optimized for ${data.mode_info.name.toLowerCase()} tasks. How can I help you?`);
-                }
-            });
-        }
-
-        function handleFileUpload(event) {
-            const files = event.target.files;
-            const preview = document.getElementById('filePreview');
-            
-            if (files.length > 0) {
-                preview.innerHTML = '';
-                
-                Array.from(files).forEach(file => {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const fileItem = document.createElement('div');
-                            fileItem.className = 'file-item';
-                            fileItem.innerHTML = `
-                                <div class="file-name">📄 ${data.original_name}</div>
-                                <div class="file-content">${data.content}</div>
-                            `;
-                            preview.appendChild(fileItem);
-                        } else {
-                            const errorItem = document.createElement('div');
-                            errorItem.className = 'error';
-                            errorItem.innerHTML = `<strong>❌ ${file.name}</strong><br>${data.error}`;
-                            preview.appendChild(errorItem);
-                        }
-                    })
-                    .catch(error => {
-                        const errorItem = document.createElement('div');
-                        errorItem.className = 'error';
-                        errorItem.innerHTML = `<strong>❌ ${file.name}</strong><br>Upload failed: ${error.message}`;
-                        preview.appendChild(errorItem);
-                    });
-                });
-            }
-        }
-
-        function loadTemplate(templateType) {
-            fetch(`/templates/${templateType}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.content) {
-                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
-                    document.getElementById('messageInput').style.height = 'auto';
-                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Error loading template: ${error.message}`);
-            });
-        }
-
-        function sendMessage(regenerate = false) {
-            if (isLoading) return;
-            
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            
-            if (!message && !regenerate) return;
-            
-            if (!regenerate) {
-                addMessage('user', message);
-                input.value = '';
-                input.style.height = 'auto';
-            }
-            
-            showStreamingIndicator();
-            
-            // Use regular chat for regeneration, streaming for new messages
-            if (regenerate) {
-                regularChat(message, true);
-            } else {
-                streamingChat(message);
-            }
-        }
-
-        function streamingChat(message) {
-            isLoading = true;
-            document.getElementById('sendBtn').disabled = true;
-            
-            // Add placeholder message for streaming
-            const messageDiv = addMessage('assistant', '', true);
-            const contentDiv = messageDiv.querySelector('.message-content');
-            
-            fetch('/chat_stream', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
-            })
-            .then(response => {
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let fullResponse = '';
-                
-                function readStream() {
-                    return reader.read().then(({ done, value }) => {
-                        if (done) {
-                            hideStreamingIndicator();
-                            addMessageActions(messageDiv, fullResponse);
-                            renderMermaidDiagrams();
-                            
-                            // Save chat history after streaming completes
-                            if (fullResponse) {
-                                saveChatToSession(message, fullResponse);
-                            }
-                            return;
-                        }
-                        
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-                        
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.slice(6));
-                                    if (data.content) {
-                                        fullResponse += data.content;
-                                        contentDiv.innerHTML = formatMessage(fullResponse);
-                                        scrollToBottom();
-                                    } else if (data.error) {
-                                        contentDiv.innerHTML = `❌ Error: ${data.error}`;
-                                        hideStreamingIndicator();
-                                        return;
-                                    } else if (data.done) {
-                                        hideStreamingIndicator();
-                                        addMessageActions(messageDiv, fullResponse);
-                                        
-                                        // Final render of Mermaid diagrams after streaming is complete
-                                        setTimeout(() => {
-                                            renderMermaidDiagrams();
-                                        }, 500);
-                                        
-                                        // Save chat history after streaming completes
-                                        if (fullResponse) {
-                                            saveChatToSession(message, fullResponse);
-                                        }
-                                        return;
-                                    }
-                                } catch (e) {
-                                    // Ignore parsing errors for incomplete JSON
-                                }
-                            }
-                        }
-                        
-                        return readStream();
-                    });
-                }
-                
-                return readStream();
-            })
-            .catch(error => {
-                hideStreamingIndicator();
-                contentDiv.innerHTML = `❌ Network error: ${error.message}`;
-            });
-        }
-
-        function saveChatToSession(userMessage, assistantResponse) {
-            // Get current mode from UI
-            const activeMode = document.querySelector('.mode-btn.active');
-            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-            
-            console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
-            
-            fetch('/save_chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_message: userMessage,
-                    assistant_response: assistantResponse,
-                    mode: mode
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Chat saved successfully');
-                    // Refresh session info
-                    loadSessionInfo();
-                } else {
-                    console.error('Error saving chat:', data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Network error saving chat:', error);
-            });
-        }
-
-        function regularChat(message, regenerate = false) {
-            isLoading = true;
-            document.getElementById('sendBtn').disabled = true;
-            
-            fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message, regenerate: regenerate })
-            })
-            .then(response => response.json())
-            .then(data => {
-                hideStreamingIndicator();
-                if (data.error) {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                } else {
-                    const messageDiv = addMessage('assistant', data.response);
-                    addMessageActions(messageDiv, data.response);
-                    if (data.cached) {
-                        addCachedIndicator(messageDiv);
-                    }
-                    renderMermaidDiagrams();
-                }
-            })
-            .catch(error => {
-                hideStreamingIndicator();
-                addMessage('assistant', `❌ Network error: ${error.message}`);
-            });
-        }
-
-        function addMessage(sender, content, isPlaceholder = false) {
-            const chatMessages = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            currentMessageIndex++;
-            messageDiv.setAttribute('data-message-id', currentMessageIndex);
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            
-            if (!isPlaceholder) {
-                contentDiv.innerHTML = formatMessage(content);
-            }
-            
-            messageDiv.appendChild(contentDiv);
-            chatMessages.appendChild(messageDiv);
-            
-            scrollToBottom();
-            return messageDiv;
-        }
-
-        function addMessageActions(messageDiv, content) {
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'message-actions';
-            
-            if (messageDiv.classList.contains('assistant')) {
-                actionsDiv.innerHTML = `
-                    <button class="action-btn regenerate" onclick="regenerateResponse(${messageDiv.getAttribute('data-message-id')})">
-                        <i class="fas fa-redo"></i> Regenerate
-                    </button>
-                    <button class="action-btn copy" onclick="copyToClipboard('${btoa(encodeURIComponent(content))}')">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
-                `;
-            } else {
-                actionsDiv.innerHTML = `
-                    <button class="action-btn copy" onclick="copyToClipboard('${btoa(encodeURIComponent(content))}')">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
-                `;
-            }
-            
-            messageDiv.appendChild(actionsDiv);
-        }
-
-        function addCachedIndicator(messageDiv) {
-            const indicator = document.createElement('div');
-            indicator.style.cssText = 'font-size: 10px; color: #28a745; margin-top: 5px; opacity: 0.8;';
-            indicator.innerHTML = '<i class="fas fa-bolt"></i> Cached response';
-            messageDiv.appendChild(indicator);
-        }
-
-        function regenerateResponse(messageId) {
-            // Find the message and regenerate
-            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (messageDiv) {
-                // Remove this and subsequent messages
-                let nextSibling = messageDiv.nextElementSibling;
-                while (nextSibling) {
-                    const toRemove = nextSibling;
-                    nextSibling = nextSibling.nextElementSibling;
-                    toRemove.remove();
-                }
-                messageDiv.remove();
-                
-                // Regenerate the response
-                sendMessage(true);
-            }
-        }
-
-        function copyToClipboard(encodedContent) {
-            const content = decodeURIComponent(atob(encodedContent));
-            navigator.clipboard.writeText(content).then(() => {
-                // Show temporary feedback
-                const feedback = document.createElement('div');
-                feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 10px; border-radius: 5px; z-index: 1000;';
-                feedback.textContent = 'Copied to clipboard!';
-                document.body.appendChild(feedback);
-                setTimeout(() => feedback.remove(), 2000);
-            });
-        }
-
-        function formatMessage(content) {
-            // Enhanced markdown-like formatting
-            let formatted = content
-                .replace(/```mermaid\n([\s\S]*?)```/g, function(match, diagram) {
-                    const cleanDiagram = diagram.trim();
-                    const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                    return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
-                })
-                .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/^\s*[-*+]\s+(.+)$/gm, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-                .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>')
-                .replace(/\n/g, '<br>');
-            
-            // Process Mermaid diagrams after a short delay
-            setTimeout(() => {
-                renderMermaidDiagrams();
-            }, 100);
-            
-            return formatted;
-        }
-
-        function renderMermaidDiagrams() {
-            // Re-initialize Mermaid for new diagrams
-            try {
-                const mermaidElements = document.querySelectorAll('.mermaid:not([data-processed])');
-                if (mermaidElements.length > 0) {
-                    mermaid.init(undefined, mermaidElements);
-                }
-            } catch (error) {
-                console.warn('Mermaid rendering error:', error);
-            }
-        }
-
-        function showStreamingIndicator() {
-            document.getElementById('streamingIndicator').style.display = 'inline-block';
-        }
-
-        function hideStreamingIndicator() {
-            isLoading = false;
-            document.getElementById('streamingIndicator').style.display = 'none';
-            document.getElementById('sendBtn').disabled = false;
-        }
-
-        function scrollToBottom() {
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        function clearHistory() {
-            if (confirm('Are you sure you want to clear the chat history? This will permanently delete all saved conversations.')) {
-                fetch('/clear_history', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const chatMessages = document.getElementById('chatMessages');
-                        chatMessages.innerHTML = `
-                            <div class="message assistant">
-                                <div class="message-content">
-                                    <strong>🔄 Chat history cleared!</strong><br><br>
-                                    How can I help you today?
-                                </div>
-                            </div>
-                        `;
-                        document.getElementById('filePreview').innerHTML = '';
-                        loadSessionInfo(); // Refresh session info
-                        console.log('Chat history cleared successfully');
-                    } else {
-                        console.error('Error clearing history:', data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error clearing history:', error);
-                });
-            }
-        }
-
-        function showPrompt() {
-            fetch('/get_prompt')
-            .then(response => response.json())
-            .then(data => {
-                if (data.prompt) {
-                    addMessage('assistant', `**🤖 System Prompt (${data.mode_info.name} Mode):**\n\n${data.prompt}`);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            });
-        }
-
-        function showChatHistory() {
-            fetch('/get_history')
-            .then(response => response.json())
-            .then(data => {
-                if (data.history) {
-                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-                    
-                    if (data.count === 0) {
-                        historyText += "No chat history found.";
-                    } else {
-                        data.history.forEach((exchange, index) => {
-                            const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
-                            const mode = exchange.mode || 'general';
-                            const modeInfo = availableModes[mode] || { name: 'General' };
-                            
-                            historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
-                            historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
-                            historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
-                        });
-                    }
-                    
-                    addMessage('assistant', historyText);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            });
-        }
-
-        function showExportOptions() {
-            document.getElementById('exportModal').style.display = 'block';
-        }
-
-        function exportConversation(format) {
-            const url = `/export_conversation?format=${format}`;
-            
-            if (format === 'json') {
-                fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    downloadFile(blob, `conversation_${Date.now()}.json`);
-                });
-            } else if (format === 'markdown') {
-                fetch(url)
-                .then(response => response.blob())
-                .then(blob => {
-                    downloadFile(blob, `conversation_${Date.now()}.md`);
-                });
-            }
-            
-            document.getElementById('exportModal').style.display = 'none';
-        }
-
-        function downloadFile(blob, filename) {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        }
-
-        function loadSessionInfo() {
-            fetch('/get_session_info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.session_id) {
-                    const sessionInfo = document.getElementById('sessionInfo');
-                    const createdDate = new Date(data.created_at).toLocaleDateString();
-                    const lastActivity = new Date(data.last_activity).toLocaleString();
-                    
-                    sessionInfo.innerHTML = `
-                        <div>Messages: ${data.message_count}</div>
-                        <div>Started: ${createdDate}</div>
-                        <div>Last activity: ${lastActivity}</div>
-                    `;
-                }
-            })
-            .catch(error => {
-                document.getElementById('sessionInfo').innerHTML = 'Unable to load session info';
-            });
-        }
-
-        function loadInitialChatHistory() {
-            console.log('Loading initial chat history...');
-            fetch('/get_history')
-            .then(response => response.json())
-            .then(data => {
-                console.log('Loaded chat history:', data);
-                const chatMessages = document.getElementById('chatMessages');
-                
-                if (data.history && data.history.length > 0) {
-                    // Clear welcome message
-                    chatMessages.innerHTML = '';
-                    
-                    // Display each exchange from history
-                    data.history.forEach(exchange => {
-                        const userMessageDiv = addMessage('user', exchange.user);
-                        addMessageActions(userMessageDiv, exchange.user);
-                        
-                        const assistantMessageDiv = addMessage('assistant', exchange.assistant);
-                        addMessageActions(assistantMessageDiv, exchange.assistant);
-                        
-                        // Add timestamp info if available
-                        if (exchange.timestamp) {
-                            const timestampDiv = document.createElement('div');
-                            timestampDiv.style.cssText = 'font-size: 10px; color: #666; margin-top: 5px; text-align: center;';
-                            timestampDiv.textContent = new Date(exchange.timestamp).toLocaleString();
-                            assistantMessageDiv.appendChild(timestampDiv);
-                        }
-                    });
-                    
-                    // Render any Mermaid diagrams in the loaded history
-                    setTimeout(() => {
-                        renderMermaidDiagrams();
-                    }, 500);
-                    
-                    console.log(`Loaded ${data.history.length} chat exchanges from database`);
-                } else {
-                    // Show welcome message if no history
-                    chatMessages.innerHTML = `
-                        <div class="message assistant">
-                            <div class="message-content">
-                                <strong>👋 Welcome back to the Enhanced Architecture Assistant!</strong><br><br>
-                                I'm your comprehensive Software Architecture Assistant with advanced capabilities:
-                                <ul style="margin: 10px 0; padding-left: 20px;">
-                                    <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
-                                    <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
-                                    <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
-                                    <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
-                                    <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
-                                    <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
-                                    <li>💾 <strong>Persistent Storage:</strong> Your conversations are automatically saved and will be restored when you return</li>
-                                </ul>
-                                Select your preferred mode and start asking questions!
-                            </div>
-                        </div>
-                    `;
-                    console.log('No previous chat history found - showing welcome message');
-                }
-                
-                scrollToBottom();
-            })
-            .catch(error => {
-                console.error('Error loading chat history:', error);
-                // Show error message but keep welcome message as fallback
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = `
-                    <div class="message assistant">
-                        <div class="message-content">
-                            <strong>⚠️ Welcome to the Enhanced Architecture Assistant!</strong><br><br>
-                            <em>Note: There was an issue loading your previous chat history, but new conversations will be saved.</em><br><br>
-                            I'm ready to help with all your software architecture needs!
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        function showSessionInfo() {
-            fetch('/get_session_info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.session_id) {
-                    const sessionDetails = `**📊 Session Information:**
-
-**Session ID:** ${data.session_id}
-**Created:** ${new Date(data.created_at).toLocaleString()}
-**Last Activity:** ${new Date(data.last_activity).toLocaleString()}
-**Total Messages:** ${data.message_count}
-
-Your chat history is automatically saved to a local SQLite database and will persist between browser sessions. This session will remain active until manually cleared or after 30 days of inactivity.`;
-                    
-                    addMessage('assistant', sessionDetails);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Error loading session info: ${error.message}`);
-            });
-        }
-
-        // Admin authentication
         let isAdminLoggedIn = false;
 
-        function showAdminLogin() {
+        // Global functions - accessible from HTML onclick handlers
+        window.showAdminLogin = function() {
             document.getElementById('adminLoginPanel').style.display = 'block';
-        }
+        };
 
-        function hideAdminLogin() {
+        window.hideAdminLogin = function() {
             document.getElementById('adminLoginPanel').style.display = 'none';
             document.getElementById('adminLoginForm').reset();
-        }
+        };
 
-        function adminRequired(functionName) {
+        window.adminRequired = function(functionName) {
             if (isAdminLoggedIn) {
-                // Call the original function
                 if (functionName === 'showPrompt') {
                     showPrompt();
                 } else if (functionName === 'showSystemPromptEditor') {
@@ -1598,102 +912,31 @@ Your chat history is automatically saved to a local SQLite database and will per
                 addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
                 showAdminLogin();
             }
-        }
+        };
 
-        function showSystemPromptEditor() {
-            if (!isAdminLoggedIn) {
-                adminRequired('showSystemPromptEditor');
-                return;
-            }
-            
-            // Get current system prompt
+        window.showPrompt = function() {
             fetch('/get_prompt')
             .then(response => response.json())
             .then(data => {
                 if (data.prompt) {
-                    // Populate the modal
-                    document.getElementById('systemPromptTextarea').value = data.prompt;
-                    document.getElementById('currentModeInfo').innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 18px;">${data.mode_info.icon}</span>
-                            <div>
-                                <strong>${data.mode_info.name}</strong>
-                                <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Show the modal
-                    document.getElementById('systemPromptModal').style.display = 'block';
-                    
-                    // Focus on textarea
-                    setTimeout(() => {
-                        document.getElementById('systemPromptTextarea').focus();
-                    }, 100);
+                    const customInfo = data.is_custom ? ' (Custom)' : ' (Default)';
+                    addMessage('assistant', `**🤖 System Prompt (${data.mode_info.name} Mode${customInfo}):**\n\n${data.prompt}`);
                 } else {
-                    addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Network error: ${error.message}`);
-            });
-        }
-
-        function saveSystemPrompt() {
-            const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
-            
-            if (!newPrompt) {
-                alert('System prompt cannot be empty!');
-                return;
-            }
-            
-            // Here you would implement the actual save functionality
-            // For now, this is a demo implementation
-            addMessage('assistant', '✅ **System prompt updated successfully!**\n\n' + 
-                       'The system prompt for the current mode has been updated. ' +
-                       'Note: This is a demo implementation - in production, this would save to the backend.');
-            
-            closeModal('systemPromptModal');
-        }
-
-        function resetSystemPrompt() {
-            if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
-                // Here you would implement the reset functionality
-                addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
-                           'The system prompt has been restored to its original default value.');
-                closeModal('systemPromptModal');
-            }
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        function logoutAdmin() {
-            isAdminLoggedIn = false;
-            document.getElementById('adminControls').style.display = 'none';
-            addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
-        }
-
-        // Admin login form handler
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const username = document.getElementById('adminUsername').value;
-                const password = document.getElementById('adminPassword').value;
-                
-                // Simple demo authentication (in production, this should be server-side)
-                if (username === 'admin' && password === 'admin123') {
-                    isAdminLoggedIn = true;
-                    document.getElementById('adminControls').style.display = 'block';
-                    hideAdminLogin();
-                    addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
-                } else {
-                    alert('Invalid credentials. Try username: admin, password: admin123');
+                    addMessage('assistant', `❌ Error: ${data.error}`);
                 }
             });
-        });
-    </script>
-</body>
-</html>
+        };
+
+        window.showChatHistory = function() {
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
+
+                    ifmermaid\n([\s\S]*?)```/g, function(match, diagram) {
+                    const cleanDiagram = diagram.trim();
+                    const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                    return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
+                })
+                .replace(/```(\w+)?\n([\s\S]*?)
