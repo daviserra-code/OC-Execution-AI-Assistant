@@ -1574,7 +1574,7 @@ Your chat history is automatically saved to a local SQLite database and will per
             });
         }
 
-        // Admin authentication
+        // Admin authentication and persistence
         let isAdminLoggedIn = false;
 
         function showAdminLogin() {
@@ -1611,8 +1611,12 @@ Your chat history is automatically saved to a local SQLite database and will per
             .then(response => response.json())
             .then(data => {
                 if (data.prompt) {
-                    // Populate the modal
-                    document.getElementById('systemPromptTextarea').value = data.prompt;
+                    // Populate the modal with larger textarea
+                    const textarea = document.getElementById('systemPromptTextarea');
+                    textarea.value = data.prompt;
+                    textarea.style.height = '500px'; // Make it larger
+                    textarea.style.minHeight = '400px';
+                    
                     document.getElementById('currentModeInfo').innerHTML = `
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 18px;">${data.mode_info.icon}</span>
@@ -1628,7 +1632,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                     
                     // Focus on textarea
                     setTimeout(() => {
-                        document.getElementById('systemPromptTextarea').focus();
+                        textarea.focus();
                     }, 100);
                 } else {
                     addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
@@ -1647,21 +1651,60 @@ Your chat history is automatically saved to a local SQLite database and will per
                 return;
             }
             
-            // Here you would implement the actual save functionality
-            // For now, this is a demo implementation
-            addMessage('assistant', '✅ **System prompt updated successfully!**\n\n' + 
-                       'The system prompt for the current mode has been updated. ' +
-                       'Note: This is a demo implementation - in production, this would save to the backend.');
+            // Get current mode
+            const activeMode = document.querySelector('.mode-btn.active');
+            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
             
-            closeModal('systemPromptModal');
+            // Save to backend with persistence
+            fetch('/save_system_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    mode: mode,
+                    prompt: newPrompt 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addMessage('assistant', '✅ **System prompt updated and saved!**\n\n' + 
+                               'The system prompt for ' + data.mode_info.name + ' mode has been permanently updated and saved to the database.');
+                    closeModal('systemPromptModal');
+                } else {
+                    alert('Error saving system prompt: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Network error saving prompt: ' + error.message);
+            });
         }
 
         function resetSystemPrompt() {
             if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
-                // Here you would implement the reset functionality
-                addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
-                           'The system prompt has been restored to its original default value.');
-                closeModal('systemPromptModal');
+                const activeMode = document.querySelector('.mode-btn.active');
+                const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+                
+                fetch('/reset_system_prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
+                                   'The system prompt has been restored to its original default value and saved.');
+                        closeModal('systemPromptModal');
+                        
+                        // Refresh the textarea with the default prompt
+                        document.getElementById('systemPromptTextarea').value = data.default_prompt;
+                    } else {
+                        alert('Error resetting prompt: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Network error: ' + error.message);
+                });
             }
         }
 
@@ -1673,6 +1716,22 @@ Your chat history is automatically saved to a local SQLite database and will per
             isAdminLoggedIn = false;
             document.getElementById('adminControls').style.display = 'none';
             addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
+        }
+
+        // Template loading function
+        function loadTemplate(templateType) {
+            fetch(`/templates/${templateType}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
+                    document.getElementById('messageInput').style.height = 'auto';
+                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading template: ${error.message}`);
+            });
         }
 
         // Admin login form handler

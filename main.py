@@ -47,10 +47,21 @@ def init_database():
             )
         ''')
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS system_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mode TEXT NOT NULL UNIQUE,
+                custom_prompt TEXT NOT NULL,
+                modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_session_id ON chat_exchanges (session_id)
         ''')
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_timestamp ON chat_exchanges (timestamp)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_mode ON system_prompts (mode)
         ''')
         conn.commit()
 
@@ -368,7 +379,13 @@ def chat():
             session['chat_history'] = []
         
         mode = session.get('assistant_mode', 'general')
-        current_prompt = ASSISTANT_MODES[mode]['prompt']
+        
+        # Get custom prompt from database if available
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+            row = cursor.fetchone()
+            current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
         
         # Handle regeneration
         if regenerate and session['chat_history']:
@@ -471,7 +488,12 @@ def chat_stream():
         
         def generate():
             try:
-                current_prompt = ASSISTANT_MODES[mode]['prompt']
+                # Get custom prompt from database if available
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+                    row = cursor.fetchone()
+                    current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
                 
                 # Build messages
                 messages = [{"role": "system", "content": current_prompt}]
@@ -630,8 +652,21 @@ def clear_history():
 def get_prompt():
     try:
         mode = session.get('assistant_mode', 'general')
+        
+        # Check for custom prompt in database first
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+            row = cursor.fetchone()
+            
+            if row:
+                prompt = row['custom_prompt']
+            else:
+                # Use default prompt
+                prompt = ASSISTANT_MODES[mode]['prompt']
+        
         return jsonify({
-            'prompt': ASSISTANT_MODES[mode]['prompt'],
+            'prompt': prompt,
             'mode': mode,
             'mode_info': ASSISTANT_MODES[mode]
         })
@@ -787,6 +822,74 @@ def save_chat():
         
     except Exception as e:
         return jsonify({'error': f'Error saving chat: {str(e)}'}), 500
+
+@app.route('/save_system_prompt', methods=['POST'])
+def save_system_prompt():
+    """Save custom system prompt to database with full persistence"""
+    try:
+        data = request.get_json()
+        mode = data.get('mode', 'general')
+        custom_prompt = data.get('prompt', '').strip()
+        
+        if not custom_prompt:
+            return jsonify({'error': 'Prompt cannot be empty'}), 400
+        
+        if mode not in ASSISTANT_MODES:
+            return jsonify({'error': 'Invalid mode'}), 400
+        
+        # Save to database with UPSERT
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO system_prompts (mode, custom_prompt, modified_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (mode, custom_prompt))
+            conn.commit()
+        
+        print(f"✅ System prompt saved for mode: {mode}")
+        
+        return jsonify({
+            'success': True,
+            'mode': mode,
+            'mode_info': ASSISTANT_MODES[mode],
+            'message': f'System prompt for {ASSISTANT_MODES[mode]["name"]} mode saved successfully'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error saving system prompt: {e}")
+        return jsonify({'error': f'Error saving system prompt: {str(e)}'}), 500
+
+@app.route('/reset_system_prompt', methods=['POST'])
+def reset_system_prompt():
+    """Reset system prompt to default and remove custom version"""
+    try:
+        data = request.get_json()
+        mode = data.get('mode', 'general')
+        
+        if mode not in ASSISTANT_MODES:
+            return jsonify({'error': 'Invalid mode'}), 400
+        
+        # Remove custom prompt from database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM system_prompts WHERE mode = ?', (mode,))
+            conn.commit()
+        
+        default_prompt = ASSISTANT_MODES[mode]['prompt']
+        
+        print(f"✅ System prompt reset to default for mode: {mode}")
+        
+        return jsonify({
+            'success': True,
+            'mode': mode,
+            'mode_info': ASSISTANT_MODES[mode],
+            'default_prompt': default_prompt,
+            'message': f'System prompt for {ASSISTANT_MODES[mode]["name"]} mode reset to default'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error resetting system prompt: {e}")
+        return jsonify({'error': f'Error resetting system prompt: {str(e)}'}), 500
 
 @app.route('/templates/<template_type>')
 def get_template(template_type):
