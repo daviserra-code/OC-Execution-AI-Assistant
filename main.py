@@ -52,18 +52,6 @@ def init_database():
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_timestamp ON chat_exchanges (timestamp)
         ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS custom_prompts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                mode TEXT NOT NULL UNIQUE,
-                custom_prompt TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_mode ON custom_prompts (mode)
-        ''')
         conn.commit()
 
 @contextmanager
@@ -162,61 +150,6 @@ def clear_session_history(session_id):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
         conn.commit()
-
-def save_custom_prompt(mode, custom_prompt):
-    """Save or update a custom prompt for a specific mode"""
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO custom_prompts (mode, custom_prompt, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-            ''', (mode, custom_prompt))
-            conn.commit()
-            print(f"✅ Saved custom prompt for mode: {mode}")
-            return True
-    except Exception as e:
-        print(f"❌ Error saving custom prompt: {e}")
-        return False
-
-def get_custom_prompt(mode):
-    """Get custom prompt for a specific mode"""
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT custom_prompt, updated_at FROM custom_prompts WHERE mode = ?
-            ''', (mode,))
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'prompt': row['custom_prompt'],
-                    'updated_at': row['updated_at']
-                }
-            return None
-    except Exception as e:
-        print(f"❌ Error getting custom prompt: {e}")
-        return None
-
-def delete_custom_prompt(mode):
-    """Delete custom prompt for a specific mode (revert to default)"""
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM custom_prompts WHERE mode = ?', (mode,))
-            conn.commit()
-            print(f"✅ Deleted custom prompt for mode: {mode}")
-            return True
-    except Exception as e:
-        print(f"❌ Error deleting custom prompt: {e}")
-        return False
-
-def get_effective_prompt(mode):
-    """Get the effective prompt for a mode (custom if exists, otherwise default)"""
-    custom_prompt_data = get_custom_prompt(mode)
-    if custom_prompt_data:
-        return custom_prompt_data['prompt']
-    return ASSISTANT_MODES.get(mode, ASSISTANT_MODES['general'])['prompt']
 
 # Initialize database on startup
 try:
@@ -435,7 +368,7 @@ def chat():
             session['chat_history'] = []
         
         mode = session.get('assistant_mode', 'general')
-        current_prompt = get_effective_prompt(mode)
+        current_prompt = ASSISTANT_MODES[mode]['prompt']
         
         # Handle regeneration
         if regenerate and session['chat_history']:
@@ -538,7 +471,7 @@ def chat_stream():
         
         def generate():
             try:
-                current_prompt = get_effective_prompt(mode)
+                current_prompt = ASSISTANT_MODES[mode]['prompt']
                 
                 # Build messages
                 messages = [{"role": "system", "content": current_prompt}]
@@ -697,20 +630,11 @@ def clear_history():
 def get_prompt():
     try:
         mode = session.get('assistant_mode', 'general')
-        custom_prompt_data = get_custom_prompt(mode)
-        
-        response = {
-            'prompt': get_effective_prompt(mode),
+        return jsonify({
+            'prompt': ASSISTANT_MODES[mode]['prompt'],
             'mode': mode,
-            'mode_info': ASSISTANT_MODES[mode],
-            'is_custom': custom_prompt_data is not None
-        }
-        
-        if custom_prompt_data:
-            response['custom_updated_at'] = custom_prompt_data['updated_at']
-            response['default_prompt'] = ASSISTANT_MODES[mode]['prompt']
-        
-        return jsonify(response)
+            'mode_info': ASSISTANT_MODES[mode]
+        })
     except Exception as e:
         return jsonify({'error': f'Error retrieving prompt: {str(e)}'}), 500
 
@@ -863,91 +787,6 @@ def save_chat():
         
     except Exception as e:
         return jsonify({'error': f'Error saving chat: {str(e)}'}), 500
-
-@app.route('/save_prompt', methods=['POST'])
-def save_prompt():
-    """Save custom prompt for admin users"""
-    try:
-        # Add basic admin check (you can enhance this with proper authentication)
-        if not session.get('is_admin', False):
-            return jsonify({'error': 'Admin access required'}), 403
-        
-        data = request.get_json()
-        mode = data.get('mode', '').strip()
-        custom_prompt = data.get('prompt', '').strip()
-        
-        if not mode or mode not in ASSISTANT_MODES:
-            return jsonify({'error': 'Invalid mode specified'}), 400
-        
-        if not custom_prompt:
-            return jsonify({'error': 'Prompt cannot be empty'}), 400
-        
-        if save_custom_prompt(mode, custom_prompt):
-            return jsonify({
-                'success': True,
-                'message': f'Custom prompt saved for {ASSISTANT_MODES[mode]["name"]} mode',
-                'mode': mode
-            })
-        else:
-            return jsonify({'error': 'Failed to save custom prompt'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': f'Error saving prompt: {str(e)}'}), 500
-
-@app.route('/reset_prompt', methods=['POST'])
-def reset_prompt():
-    """Reset prompt to default for admin users"""
-    try:
-        if not session.get('is_admin', False):
-            return jsonify({'error': 'Admin access required'}), 403
-        
-        data = request.get_json()
-        mode = data.get('mode', '').strip()
-        
-        if not mode or mode not in ASSISTANT_MODES:
-            return jsonify({'error': 'Invalid mode specified'}), 400
-        
-        if delete_custom_prompt(mode):
-            return jsonify({
-                'success': True,
-                'message': f'Prompt reset to default for {ASSISTANT_MODES[mode]["name"]} mode',
-                'mode': mode,
-                'default_prompt': ASSISTANT_MODES[mode]['prompt']
-            })
-        else:
-            return jsonify({'error': 'Failed to reset prompt'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': f'Error resetting prompt: {str(e)}'}), 500
-
-@app.route('/admin_login', methods=['POST'])
-def admin_login():
-    """Simple admin login (enhance with proper authentication in production)"""
-    try:
-        data = request.get_json()
-        username = data.get('username', '').strip()
-        password = data.get('password', '').strip()
-        
-        # Simple check (replace with proper authentication)
-        if username == 'admin' and password == 'admin123':
-            session['is_admin'] = True
-            session.modified = True
-            return jsonify({'success': True, 'message': 'Admin login successful'})
-        else:
-            return jsonify({'error': 'Invalid credentials'}), 401
-            
-    except Exception as e:
-        return jsonify({'error': f'Login error: {str(e)}'}), 500
-
-@app.route('/admin_logout', methods=['POST'])
-def admin_logout():
-    """Admin logout"""
-    try:
-        session['is_admin'] = False
-        session.modified = True
-        return jsonify({'success': True, 'message': 'Admin logout successful'})
-    except Exception as e:
-        return jsonify({'error': f'Logout error: {str(e)}'}), 500
 
 @app.route('/templates/<template_type>')
 def get_template(template_type):
