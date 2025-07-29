@@ -897,6 +897,7 @@
             initializeEventListeners();
             loadSessionInfo();
             loadInitialChatHistory();
+            initializeAdminLogin(); // Initialize admin login functionality
             mermaid.initialize({ 
                 startOnLoad: false,
                 theme: 'default',
@@ -1586,6 +1587,200 @@ Your chat history is automatically saved to a local SQLite database and will per
             document.getElementById('adminLoginForm').reset();
         }
 
+        function showAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'block';
+        }
+
+        function hideAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'none';
+            document.getElementById('adminLoginForm').reset();
+        }
+
+        function showSessionInfo() {
+            fetch('/get_session_info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.session_id) {
+                    const sessionDetails = `**📊 Session Information:**
+
+**Session ID:** ${data.session_id}
+**Created:** ${new Date(data.created_at).toLocaleString()}
+**Last Activity:** ${new Date(data.last_activity).toLocaleString()}
+**Total Messages:** ${data.message_count}
+
+Your chat history is automatically saved to a local SQLite database and will persist between browser sessions.`;
+                    
+                    addMessage('assistant', sessionDetails);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading session info: ${error.message}`);
+            });
+        }
+
+        function showChatHistory() {
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
+                    
+                    if (data.count === 0) {
+                        historyText += "No chat history found.";
+                    } else {
+                        data.history.forEach((exchange, index) => {
+                            const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
+                            const mode = exchange.mode || 'general';
+                            const modeInfo = availableModes[mode] || { name: 'General' };
+                            
+                            historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
+                            historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
+                            historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
+                        });
+                    }
+                    
+                    addMessage('assistant', historyText);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            });
+        }
+
+        function loadTemplate(templateType) {
+            fetch(`/templates/${templateType}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
+                    document.getElementById('messageInput').style.height = 'auto';
+                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading template: ${error.message}`);
+            });
+        }
+
+        function showSystemPromptEditor() {
+            if (!isAdminLoggedIn) {
+                adminRequired('showSystemPromptEditor');
+                return;
+            }
+            
+            // Get current system prompt
+            fetch('/get_prompt')
+            .then(response => response.json())
+            .then(data => {
+                if (data.prompt) {
+                    // Populate the modal with larger textarea
+                    const textarea = document.getElementById('systemPromptTextarea');
+                    textarea.value = data.prompt;
+                    textarea.style.height = '500px'; // Make it larger
+                    textarea.style.minHeight = '400px';
+                    
+                    document.getElementById('currentModeInfo').innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 18px;">${data.mode_info.icon}</span>
+                            <div>
+                                <strong>${data.mode_info.name}</strong>
+                                <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show the modal
+                    document.getElementById('systemPromptModal').style.display = 'block';
+                    
+                    // Focus on textarea
+                    setTimeout(() => {
+                        textarea.focus();
+                    }, 100);
+                } else {
+                    addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Network error: ${error.message}`);
+            });
+        }
+
+        function saveSystemPrompt() {
+            const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
+            
+            if (!newPrompt) {
+                alert('System prompt cannot be empty!');
+                return;
+            }
+            
+            // Get current mode
+            const activeMode = document.querySelector('.mode-btn.active');
+            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+            
+            // Save to backend with persistence
+            fetch('/save_system_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    mode: mode,
+                    prompt: newPrompt 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addMessage('assistant', '✅ **System prompt updated and saved!**\n\n' + 
+                               'The system prompt for ' + data.mode_info.name + ' mode has been permanently updated and saved to the database.');
+                    closeModal('systemPromptModal');
+                } else {
+                    alert('Error saving system prompt: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Network error saving prompt: ' + error.message);
+            });
+        }
+
+        function resetSystemPrompt() {
+            if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
+                const activeMode = document.querySelector('.mode-btn.active');
+                const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+                
+                fetch('/reset_system_prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
+                                   'The system prompt has been restored to its original default value and saved.');
+                        closeModal('systemPromptModal');
+                        
+                        // Refresh the textarea with the default prompt
+                        document.getElementById('systemPromptTextarea').value = data.default_prompt;
+                    } else {
+                        alert('Error resetting prompt: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Network error: ' + error.message);
+                });
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('adminControls').style.display = 'none';
+            addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
         function adminRequired(functionName) {
             if (isAdminLoggedIn) {
                 // Call the original function
@@ -1734,25 +1929,28 @@ Your chat history is automatically saved to a local SQLite database and will per
             });
         }
 
-        // Admin login form handler
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const username = document.getElementById('adminUsername').value;
-                const password = document.getElementById('adminPassword').value;
-                
-                // Simple demo authentication (in production, this should be server-side)
-                if (username === 'admin' && password === 'admin123') {
-                    isAdminLoggedIn = true;
-                    document.getElementById('adminControls').style.display = 'block';
-                    hideAdminLogin();
-                    addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
-                } else {
-                    alert('Invalid credentials. Try username: admin, password: admin123');
-                }
-            });
-        });
+        // Admin login form handler - moved inside DOMContentLoaded
+        function initializeAdminLogin() {
+            const adminForm = document.getElementById('adminLoginForm');
+            if (adminForm) {
+                adminForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const username = document.getElementById('adminUsername').value;
+                    const password = document.getElementById('adminPassword').value;
+                    
+                    // Simple demo authentication (in production, this should be server-side)
+                    if (username === 'admin' && password === 'admin123') {
+                        isAdminLoggedIn = true;
+                        document.getElementById('adminControls').style.display = 'block';
+                        hideAdminLogin();
+                        addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
+                    } else {
+                        alert('Invalid credentials. Try username: admin, password: admin123');
+                    }
+                });
+            }
+        }
     </script>
 </body>
 </html>

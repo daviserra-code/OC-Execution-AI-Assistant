@@ -14,6 +14,23 @@ import threading
 import queue
 import sqlite3
 from contextlib import contextmanager
+import numpy as np
+try:
+    from sentence_transformers import SentenceTransformer
+    import faiss
+    HAS_VECTOR_SUPPORT = True
+except ImportError:
+    HAS_VECTOR_SUPPORT = False
+    print("⚠️  Vector database support not available. Install sentence-transformers and faiss-cpu for enhanced AI capabilities.")
+
+import ast
+import re
+try:
+    import PyPDF2
+    import docx
+    HAS_DOC_SUPPORT = True
+except ImportError:
+    HAS_DOC_SUPPORT = False
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
@@ -162,10 +179,13 @@ def clear_session_history(session_id):
         cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
         conn.commit()
 
-# Initialize database on startup
+# Initialize database and vector database on startup
 try:
     init_database()
     print("✅ Database initialized successfully")
+    
+    # Initialize vector database for enhanced AI capabilities
+    initialize_vector_db()
     
     # Test database connection
     with get_db_connection() as conn:
@@ -300,26 +320,134 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def process_uploaded_file(file_path):
-    """Process uploaded file and return its content"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            # Store full content in session for context
-            if 'uploaded_files' not in session:
-                session['uploaded_files'] = {}
-            session['uploaded_files'][os.path.basename(file_path)] = content
-            session.modified = True
-            return content
-    except UnicodeDecodeError:
+# Initialize vector database for enhanced AI capabilities
+vector_db = None
+sentence_model = None
+
+def initialize_vector_db():
+    """Initialize vector database for RAG capabilities"""
+    global vector_db, sentence_model
+    if HAS_VECTOR_SUPPORT:
         try:
-            # Try with different encoding
-            with open(file_path, 'r', encoding='latin-1') as f:
-                return f.read()
-        except:
-            return f"[Binary file: {os.path.basename(file_path)}]"
+            sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+            vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
+            print("✅ Vector database initialized for enhanced AI capabilities")
+        except Exception as e:
+            print(f"⚠️  Could not initialize vector database: {e}")
+
+def analyze_code_structure(code_content, file_extension):
+    """Analyze code structure and extract meaningful information"""
+    analysis = {
+        'functions': [],
+        'classes': [],
+        'imports': [],
+        'complexity_score': 0,
+        'line_count': len(code_content.split('\n'))
+    }
+    
+    try:
+        if file_extension in ['.py']:
+            tree = ast.parse(code_content)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    analysis['functions'].append({
+                        'name': node.name,
+                        'line': node.lineno,
+                        'args': [arg.arg for arg in node.args.args]
+                    })
+                elif isinstance(node, ast.ClassDef):
+                    analysis['classes'].append({
+                        'name': node.name,
+                        'line': node.lineno
+                    })
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        analysis['imports'].append(alias.name)
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        analysis['imports'].append(f"from {node.module}")
+        
+        # Simple complexity estimation
+        analysis['complexity_score'] = len(analysis['functions']) + len(analysis['classes']) * 2
+        
     except Exception as e:
-        return f"[Error reading file: {str(e)}]"
+        analysis['error'] = f"Code analysis error: {str(e)}"
+    
+    return analysis
+
+def process_uploaded_file(file_path):
+    """Enhanced file processing with code analysis and better content extraction"""
+    filename = os.path.basename(file_path)
+    file_extension = os.path.splitext(filename)[1].lower()
+    
+    try:
+        content = ""
+        
+        # Handle different file types
+        if file_extension == '.pdf' and HAS_DOC_SUPPORT:
+            try:
+                with open(file_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    content = ""
+                    for page in pdf_reader.pages:
+                        content += page.extract_text() + "\n"
+            except Exception as e:
+                content = f"[PDF processing error: {str(e)}]"
+        
+        elif file_extension in ['.docx', '.doc'] and HAS_DOC_SUPPORT:
+            try:
+                doc = docx.Document(file_path)
+                content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            except Exception as e:
+                content = f"[Document processing error: {str(e)}]"
+        
+        else:
+            # Text-based files
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                except Exception as e:
+                    return f"[Binary file - could not read: {str(e)}]"
+        
+        # Enhanced processing for code files
+        if file_extension in ['.py', '.js', '.cs', '.java', '.cpp', '.c', '.h']:
+            code_analysis = analyze_code_structure(content, file_extension)
+            
+            # Add analysis summary to content
+            if 'error' not in code_analysis:
+                analysis_summary = f"\n\n--- CODE ANALYSIS ---\n"
+                analysis_summary += f"File: {filename}\n"
+                analysis_summary += f"Lines: {code_analysis['line_count']}\n"
+                analysis_summary += f"Functions: {len(code_analysis['functions'])}\n"
+                analysis_summary += f"Classes: {len(code_analysis['classes'])}\n"
+                analysis_summary += f"Imports: {len(code_analysis['imports'])}\n"
+                analysis_summary += f"Complexity Score: {code_analysis['complexity_score']}\n"
+                
+                if code_analysis['functions']:
+                    analysis_summary += f"Function Names: {', '.join([f['name'] for f in code_analysis['functions']])}\n"
+                
+                content += analysis_summary
+        
+        # Store enhanced content in session
+        if 'uploaded_files' not in session:
+            session['uploaded_files'] = {}
+        
+        session['uploaded_files'][filename] = {
+            'content': content,
+            'type': file_extension,
+            'size': len(content),
+            'analysis': code_analysis if file_extension in ['.py', '.js', '.cs', '.java', '.cpp', '.c', '.h'] else None
+        }
+        session.modified = True
+        
+        return content
+        
+    except Exception as e:
+        return f"[Error processing {filename}: {str(e)}]"
 
 def get_cache_key(message, mode, context_summary):
     """Generate cache key for similar messages"""
@@ -559,22 +687,54 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             timestamp = str(int(time.time()))
-            filename = f"{timestamp}_{filename}"
-            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            safe_filename = f"{timestamp}_{filename}"
+            file_path = os.path.join(UPLOAD_FOLDER, safe_filename)
             file.save(file_path)
             
-            # Process the file content
+            # Enhanced file processing
             file_content = process_uploaded_file(file_path)
+            
+            # Get file info from session
+            file_info = session.get('uploaded_files', {}).get(file.filename, {})
+            file_extension = os.path.splitext(file.filename)[1].lower()
+            
+            # Provide enhanced preview based on file type
+            preview_content = file_content[:1000] + ('...' if len(file_content) > 1000 else '')
+            
+            # Add file type specific information
+            file_type_info = ""
+            if file_extension in ['.py', '.js', '.cs', '.java', '.cpp', '.c', '.h']:
+                file_type_info = "📄 Code file - Enhanced analysis available"
+            elif file_extension == '.pdf':
+                file_type_info = "📋 PDF document" + (" - Extracted text" if HAS_DOC_SUPPORT else " - Text extraction not available")
+            elif file_extension in ['.docx', '.doc']:
+                file_type_info = "📝 Word document" + (" - Extracted content" if HAS_DOC_SUPPORT else " - Content extraction not available")
+            elif file_extension in ['.md', '.txt']:
+                file_type_info = "📄 Text document"
+            elif file_extension in ['.json', '.xml', '.yaml', '.yml']:
+                file_type_info = "🔧 Configuration file"
+            else:
+                file_type_info = f"📎 {file_extension.upper()[1:]} file"
+            
+            # Clean up temporary file
+            try:
+                os.remove(file_path)
+            except:
+                pass
             
             return jsonify({
                 'success': True,
-                'filename': filename,
+                'filename': safe_filename,
                 'original_name': file.filename,
-                'content': file_content[:1000] + ('...' if len(file_content) > 1000 else ''),
-                'full_content': file_content
+                'content': preview_content,
+                'full_content': file_content,
+                'file_type_info': file_type_info,
+                'size': len(file_content),
+                'analysis': file_info.get('analysis') if isinstance(file_info, dict) else None
             })
         else:
-            return jsonify({'error': 'File type not allowed'}), 400
+            allowed_types = ', '.join(sorted(ALLOWED_EXTENSIONS))
+            return jsonify({'error': f'File type not allowed. Supported types: {allowed_types}'}), 400
             
     except Exception as e:
         return jsonify({'error': f'Upload error: {str(e)}'}), 500
