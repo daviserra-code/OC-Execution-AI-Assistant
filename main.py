@@ -75,10 +75,11 @@ def get_session_id():
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    'INSERT INTO chat_sessions (session_id) VALUES (?)',
+                    'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
                     (session['user_session_id'],)
                 )
                 conn.commit()
+                print(f"Created new session: {session['user_session_id'][:8]}...")
         except Exception as e:
             print(f"Error creating session in database: {e}")
     
@@ -89,6 +90,13 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            
+            # Ensure session exists first
+            cursor.execute('''
+                INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)
+            ''', (session_id,))
+            
+            # Insert the chat exchange
             cursor.execute('''
                 INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
                 VALUES (?, ?, ?, ?)
@@ -100,32 +108,41 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
                 SET last_activity = CURRENT_TIMESTAMP 
                 WHERE session_id = ?
             ''', (session_id,))
+            
             conn.commit()
-            print(f"Saved chat exchange for session {session_id[:8]}...")
+            print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
-        print(f"Error saving chat exchange: {e}")
+        print(f"❌ Error saving chat exchange: {e}")
+        raise e
 
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT user_message, assistant_response, mode, timestamp
-            FROM chat_exchanges
-            WHERE session_id = ?
-            ORDER BY timestamp ASC
-            LIMIT ?
-        ''', (session_id, limit))
-        
-        return [
-            {
-                'user': row['user_message'],
-                'assistant': row['assistant_response'],
-                'mode': row['mode'],
-                'timestamp': row['timestamp']
-            }
-            for row in cursor.fetchall()
-        ]
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT user_message, assistant_response, mode, timestamp
+                FROM chat_exchanges
+                WHERE session_id = ?
+                ORDER BY timestamp ASC
+                LIMIT ?
+            ''', (session_id, limit))
+            
+            rows = cursor.fetchall()
+            history = [
+                {
+                    'user': row['user_message'],
+                    'assistant': row['assistant_response'],
+                    'mode': row['mode'] or 'general',
+                    'timestamp': row['timestamp']
+                }
+                for row in rows
+            ]
+            print(f"Successfully loaded {len(history)} exchanges from database")
+            return history
+    except Exception as e:
+        print(f"Error loading chat history from database: {e}")
+        return []
 
 def clear_session_history(session_id):
     """Clear chat history for a specific session"""
@@ -135,7 +152,20 @@ def clear_session_history(session_id):
         conn.commit()
 
 # Initialize database on startup
-init_database()
+try:
+    init_database()
+    print("✅ Database initialized successfully")
+    
+    # Test database connection
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
+        session_count = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
+        exchange_count = cursor.fetchone()['count']
+        print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
+except Exception as e:
+    print(f"❌ Database initialization error: {e}")
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -305,8 +335,14 @@ def index():
     session_id = get_session_id()
     
     # Load persistent chat history and store in session
-    persistent_history = load_chat_history(session_id)
-    session['chat_history'] = persistent_history
+    try:
+        persistent_history = load_chat_history(session_id)
+        session['chat_history'] = persistent_history
+        print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
+    except Exception as e:
+        print(f"Error loading chat history: {e}")
+        persistent_history = []
+        session['chat_history'] = []
     
     if 'assistant_mode' not in session:
         session['assistant_mode'] = 'general'
@@ -614,9 +650,11 @@ def get_history():
         session['chat_history'] = chat_history
         session.modified = True
         
+        print(f"Returning {len(chat_history)} chat exchanges to frontend")
         return jsonify({'history': chat_history, 'count': len(chat_history)})
     except Exception as e:
-        return jsonify({'error': f'Error retrieving chat history: {str(e)}'}), 500
+        print(f"Error in get_history route: {e}")
+        return jsonify({'error': f'Error retrieving chat history: {str(e)}', 'history': [], 'count': 0}), 200
 
 @app.route('/get_modes', methods=['GET'])
 def get_modes():
