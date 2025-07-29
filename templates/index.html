@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -562,13 +561,13 @@
             .container {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 height: auto;
                 max-height: 50vh;
             }
-            
+
             .message-content {
                 max-width: 95%;
             }
@@ -582,14 +581,14 @@
                 <h1>🏗️ Architecture Assistant</h1>
                 <p>Advanced Software Architecture & Opcenter Expert</p>
             </div>
-            
+
             <div class="mode-selector">
                 <h3><i class="fas fa-cog"></i> Assistant Mode</h3>
                 <div class="mode-buttons" id="modeButtons">
                     <!-- Modes will be populated by JavaScript -->
                 </div>
             </div>
-            
+
             <div class="upload-section">
                 <h3><i class="fas fa-upload"></i> Upload Files</h3>
                 <div class="file-input-wrapper">
@@ -603,7 +602,7 @@
                     Supports: Code files, Documents, Images, etc.
                 </p>
             </div>
-            
+
             <div class="templates-section">
                 <h3><i class="fas fa-file-alt"></i> Quick Templates</h3>
                 <button class="template-btn" onclick="loadTemplate('adr')">
@@ -616,7 +615,7 @@
                     👨‍💻 Code Review Checklist
                 </button>
             </div>
-            
+
             <div class="session-info" style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
                 <div style="display: flex; align-items: center; margin-bottom: 5px;">
                     <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
@@ -626,7 +625,7 @@
                     Loading session info...
                 </div>
             </div>
-            
+
             <div class="controls">
                 <button onclick="showPrompt()" class="control-btn primary">
                     <i class="fas fa-eye"></i> View System Prompt
@@ -645,7 +644,7 @@
                 </button>
             </div>
         </div>
-        
+
         <div class="chat-container">
             <div class="chat-header">
                 <div>
@@ -658,11 +657,11 @@
                     </div>
                 </div>
             </div>
-            
+
             <div id="chatMessages" class="chat-messages">
                 <!-- Chat history will be loaded here -->
             </div>
-            
+
             <div class="input-container">
                 <div class="input-wrapper">
                     <textarea 
@@ -709,13 +708,25 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
-        
+
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
-            loadModes();
             initializeEventListeners();
             loadSessionInfo();
             loadInitialChatHistory();
+
+            // Initialize available modes object for the hardcoded modes
+            availableModes = {
+                "general": { "name": "General Architecture", "icon": "🏗️" },
+                "architecture_review": { "name": "Architecture Review", "icon": "🔍" },
+                "code_review": { "name": "Code Review", "icon": "👨‍💻" },
+                "documentation": { "name": "Documentation", "icon": "📚" },
+                "opcenter": { "name": "Opcenter Expert", "icon": "⚙️" }
+            };
+
+            // Set general mode as active by default
+            setAssistantMode('general');
+
             mermaid.initialize({ 
                 startOnLoad: false,
                 theme: 'default',
@@ -765,7 +776,7 @@
                 availableModes = data.modes;
                 const modeButtons = document.getElementById('modeButtons');
                 modeButtons.innerHTML = '';
-                
+
                 Object.keys(availableModes).forEach(modeKey => {
                     const mode = availableModes[modeKey];
                     const button = document.createElement('button');
@@ -775,7 +786,7 @@
                     button.onclick = () => setAssistantMode(modeKey);
                     modeButtons.appendChild(button);
                 });
-                
+
                 // Set general mode as active by default
                 setAssistantMode('general');
             });
@@ -795,10 +806,10 @@
                         btn.classList.remove('active');
                     });
                     document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-                    
+
                     const modeDisplay = document.getElementById('currentModeDisplay');
                     modeDisplay.innerHTML = `${data.mode_info.icon} ${data.mode_info.name}`;
-                    
+
                     addMessage('assistant', `🔄 **Mode switched to: ${data.mode_info.name}**\n\nI'm now optimized for ${data.mode_info.name.toLowerCase()} tasks. How can I help you?`);
                 }
             });
@@ -807,14 +818,14 @@
         function handleFileUpload(event) {
             const files = event.target.files;
             const preview = document.getElementById('filePreview');
-            
+
             if (files.length > 0) {
                 preview.innerHTML = '';
-                
+
                 Array.from(files).forEach(file => {
                     const formData = new FormData();
                     formData.append('file', file);
-                    
+
                     fetch('/upload', {
                         method: 'POST',
                         body: formData
@@ -863,20 +874,20 @@
 
         function sendMessage(regenerate = false) {
             if (isLoading) return;
-            
+
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message && !regenerate) return;
-            
+
             if (!regenerate) {
                 addMessage('user', message);
                 input.value = '';
                 input.style.height = 'auto';
             }
-            
+
             showStreamingIndicator();
-            
+
             // Use regular chat for regeneration, streaming for new messages
             if (regenerate) {
                 regularChat(message, true);
@@ -888,11 +899,11 @@
         function streamingChat(message) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-            
+
             // Add placeholder message for streaming
             const messageDiv = addMessage('assistant', '', true);
             const contentDiv = messageDiv.querySelector('.message-content');
-            
+
             fetch('/chat_stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -902,24 +913,24 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullResponse = '';
-                
+
                 function readStream() {
                     return reader.read().then(({ done, value }) => {
                         if (done) {
                             hideStreamingIndicator();
                             addMessageActions(messageDiv, fullResponse);
                             renderMermaidDiagrams();
-                            
+
                             // Save chat history after streaming completes
                             if (fullResponse) {
                                 saveChatToSession(message, fullResponse);
                             }
                             return;
                         }
-                        
+
                         const chunk = decoder.decode(value);
                         const lines = chunk.split('\n');
-                        
+
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
                                 try {
@@ -935,12 +946,12 @@
                                     } else if (data.done) {
                                         hideStreamingIndicator();
                                         addMessageActions(messageDiv, fullResponse);
-                                        
+
                                         // Final render of Mermaid diagrams after streaming is complete
                                         setTimeout(() => {
                                             renderMermaidDiagrams();
                                         }, 500);
-                                        
+
                                         // Save chat history after streaming completes
                                         if (fullResponse) {
                                             saveChatToSession(message, fullResponse);
@@ -952,11 +963,11 @@
                                 }
                             }
                         }
-                        
+
                         return readStream();
                     });
                 }
-                
+
                 return readStream();
             })
             .catch(error => {
@@ -969,9 +980,9 @@
             // Get current mode from UI
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-            
+
             console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
-            
+
             fetch('/save_chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -999,7 +1010,7 @@
         function regularChat(message, regenerate = false) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-            
+
             fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1031,17 +1042,17 @@
             messageDiv.className = `message ${sender}`;
             currentMessageIndex++;
             messageDiv.setAttribute('data-message-id', currentMessageIndex);
-            
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            
+
             if (!isPlaceholder) {
                 contentDiv.innerHTML = formatMessage(content);
             }
-            
+
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
-            
+
             scrollToBottom();
             return messageDiv;
         }
@@ -1049,7 +1060,7 @@
         function addMessageActions(messageDiv, content) {
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-actions';
-            
+
             if (messageDiv.classList.contains('assistant')) {
                 actionsDiv.innerHTML = `
                     <button class="action-btn regenerate" onclick="regenerateResponse(${messageDiv.getAttribute('data-message-id')})">
@@ -1066,7 +1077,7 @@
                     </button>
                 `;
             }
-            
+
             messageDiv.appendChild(actionsDiv);
         }
 
@@ -1089,7 +1100,7 @@
                     toRemove.remove();
                 }
                 messageDiv.remove();
-                
+
                 // Regenerate the response
                 sendMessage(true);
             }
@@ -1115,279 +1126,4 @@
                     const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
                     return `<div class="mermaid" id="${diagramId}">${cleanDiagram}</div>`;
                 })
-                .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/^\s*[-*+]\s+(.+)$/gm, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-                .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>')
-                .replace(/\n/g, '<br>');
-            
-            // Process Mermaid diagrams after a short delay
-            setTimeout(() => {
-                renderMermaidDiagrams();
-            }, 100);
-            
-            return formatted;
-        }
-
-        function renderMermaidDiagrams() {
-            // Re-initialize Mermaid for new diagrams
-            try {
-                const mermaidElements = document.querySelectorAll('.mermaid:not([data-processed])');
-                if (mermaidElements.length > 0) {
-                    mermaid.init(undefined, mermaidElements);
-                }
-            } catch (error) {
-                console.warn('Mermaid rendering error:', error);
-            }
-        }
-
-        function showStreamingIndicator() {
-            document.getElementById('streamingIndicator').style.display = 'inline-block';
-        }
-
-        function hideStreamingIndicator() {
-            isLoading = false;
-            document.getElementById('streamingIndicator').style.display = 'none';
-            document.getElementById('sendBtn').disabled = false;
-        }
-
-        function scrollToBottom() {
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        function clearHistory() {
-            if (confirm('Are you sure you want to clear the chat history? This will permanently delete all saved conversations.')) {
-                fetch('/clear_history', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const chatMessages = document.getElementById('chatMessages');
-                        chatMessages.innerHTML = `
-                            <div class="message assistant">
-                                <div class="message-content">
-                                    <strong>🔄 Chat history cleared!</strong><br><br>
-                                    How can I help you today?
-                                </div>
-                            </div>
-                        `;
-                        document.getElementById('filePreview').innerHTML = '';
-                        loadSessionInfo(); // Refresh session info
-                        console.log('Chat history cleared successfully');
-                    } else {
-                        console.error('Error clearing history:', data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error clearing history:', error);
-                });
-            }
-        }
-
-        function showPrompt() {
-            fetch('/get_prompt')
-            .then(response => response.json())
-            .then(data => {
-                if (data.prompt) {
-                    addMessage('assistant', `**🤖 System Prompt (${data.mode_info.name} Mode):**\n\n${data.prompt}`);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            });
-        }
-
-        function showChatHistory() {
-            fetch('/get_history')
-            .then(response => response.json())
-            .then(data => {
-                if (data.history) {
-                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-                    
-                    if (data.count === 0) {
-                        historyText += "No chat history found.";
-                    } else {
-                        data.history.forEach((exchange, index) => {
-                            const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
-                            const mode = exchange.mode || 'general';
-                            const modeInfo = availableModes[mode] || { name: 'General' };
-                            
-                            historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
-                            historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
-                            historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
-                        });
-                    }
-                    
-                    addMessage('assistant', historyText);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            });
-        }
-
-        function showExportOptions() {
-            document.getElementById('exportModal').style.display = 'block';
-        }
-
-        function exportConversation(format) {
-            const url = `/export_conversation?format=${format}`;
-            
-            if (format === 'json') {
-                fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    downloadFile(blob, `conversation_${Date.now()}.json`);
-                });
-            } else if (format === 'markdown') {
-                fetch(url)
-                .then(response => response.blob())
-                .then(blob => {
-                    downloadFile(blob, `conversation_${Date.now()}.md`);
-                });
-            }
-            
-            document.getElementById('exportModal').style.display = 'none';
-        }
-
-        function downloadFile(blob, filename) {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        }
-
-        function loadSessionInfo() {
-            fetch('/get_session_info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.session_id) {
-                    const sessionInfo = document.getElementById('sessionInfo');
-                    const createdDate = new Date(data.created_at).toLocaleDateString();
-                    const lastActivity = new Date(data.last_activity).toLocaleString();
-                    
-                    sessionInfo.innerHTML = `
-                        <div>Messages: ${data.message_count}</div>
-                        <div>Started: ${createdDate}</div>
-                        <div>Last activity: ${lastActivity}</div>
-                    `;
-                }
-            })
-            .catch(error => {
-                document.getElementById('sessionInfo').innerHTML = 'Unable to load session info';
-            });
-        }
-
-        function loadInitialChatHistory() {
-            console.log('Loading initial chat history...');
-            fetch('/get_history')
-            .then(response => response.json())
-            .then(data => {
-                console.log('Loaded chat history:', data);
-                const chatMessages = document.getElementById('chatMessages');
-                
-                if (data.history && data.history.length > 0) {
-                    // Clear welcome message
-                    chatMessages.innerHTML = '';
-                    
-                    // Display each exchange from history
-                    data.history.forEach(exchange => {
-                        const userMessageDiv = addMessage('user', exchange.user);
-                        addMessageActions(userMessageDiv, exchange.user);
-                        
-                        const assistantMessageDiv = addMessage('assistant', exchange.assistant);
-                        addMessageActions(assistantMessageDiv, exchange.assistant);
-                        
-                        // Add timestamp info if available
-                        if (exchange.timestamp) {
-                            const timestampDiv = document.createElement('div');
-                            timestampDiv.style.cssText = 'font-size: 10px; color: #666; margin-top: 5px; text-align: center;';
-                            timestampDiv.textContent = new Date(exchange.timestamp).toLocaleString();
-                            assistantMessageDiv.appendChild(timestampDiv);
-                        }
-                    });
-                    
-                    // Render any Mermaid diagrams in the loaded history
-                    setTimeout(() => {
-                        renderMermaidDiagrams();
-                    }, 500);
-                    
-                    console.log(`Loaded ${data.history.length} chat exchanges from database`);
-                } else {
-                    // Show welcome message if no history
-                    chatMessages.innerHTML = `
-                        <div class="message assistant">
-                            <div class="message-content">
-                                <strong>👋 Welcome back to the Enhanced Architecture Assistant!</strong><br><br>
-                                I'm your comprehensive Software Architecture Assistant with advanced capabilities:
-                                <ul style="margin: 10px 0; padding-left: 20px;">
-                                    <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
-                                    <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
-                                    <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
-                                    <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
-                                    <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
-                                    <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
-                                    <li>💾 <strong>Persistent Storage:</strong> Your conversations are automatically saved and will be restored when you return</li>
-                                </ul>
-                                Select your preferred mode and start asking questions!
-                            </div>
-                        </div>
-                    `;
-                    console.log('No previous chat history found - showing welcome message');
-                }
-                
-                scrollToBottom();
-            })
-            .catch(error => {
-                console.error('Error loading chat history:', error);
-                // Show error message but keep welcome message as fallback
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = `
-                    <div class="message assistant">
-                        <div class="message-content">
-                            <strong>⚠️ Welcome to the Enhanced Architecture Assistant!</strong><br><br>
-                            <em>Note: There was an issue loading your previous chat history, but new conversations will be saved.</em><br><br>
-                            I'm ready to help with all your software architecture needs!
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        function showSessionInfo() {
-            fetch('/get_session_info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.session_id) {
-                    const sessionDetails = `**📊 Session Information:**
-
-**Session ID:** ${data.session_id}
-**Created:** ${new Date(data.created_at).toLocaleString()}
-**Last Activity:** ${new Date(data.last_activity).toLocaleString()}
-**Total Messages:** ${data.message_count}
-
-Your chat history is automatically saved to a local SQLite database and will persist between browser sessions. This session will remain active until manually cleared or after 30 days of inactivity.`;
-                    
-                    addMessage('assistant', sessionDetails);
-                } else {
-                    addMessage('assistant', `❌ Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Error loading session info: ${error.message}`);
-            });
-        }
-    </script>
-</body>
-</html>
+                .replace(/```(\w+)?\n([\s\S]*?)
