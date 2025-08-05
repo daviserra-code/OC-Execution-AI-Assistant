@@ -37,14 +37,6 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
 
 openai.api_key = os.environ.get('OPENAI_API_KEY', '')
 
-# AI Model Configuration
-AVAILABLE_MODELS = {
-    'gpt-4': {'name': 'GPT-4', 'provider': 'openai', 'max_tokens': 3000},
-    'gpt-4-turbo': {'name': 'GPT-4 Turbo', 'provider': 'openai', 'max_tokens': 4000},
-    'gpt-3.5-turbo': {'name': 'GPT-3.5 Turbo', 'provider': 'openai', 'max_tokens': 2000}
-}
-DEFAULT_MODEL = 'gpt-4'
-
 # Database configuration
 DATABASE_PATH = 'chat_history.db'
 
@@ -192,6 +184,9 @@ try:
     init_database()
     print("✅ Database initialized successfully")
     
+    # Initialize vector database for enhanced AI capabilities
+    initialize_vector_db()
+    
     # Test database connection
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -200,9 +195,6 @@ try:
         cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
         exchange_count = cursor.fetchone()['count']
         print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
-        
-    # Initialize vector database for enhanced AI capabilities after database setup
-    initialize_vector_db()
 except Exception as e:
     print(f"❌ Database initialization error: {e}")
 
@@ -344,84 +336,39 @@ def initialize_vector_db():
             print(f"⚠️  Could not initialize vector database: {e}")
 
 def analyze_code_structure(code_content, file_extension):
-    """Enhanced code analysis with dependency tracking and metrics"""
+    """Analyze code structure and extract meaningful information"""
     analysis = {
         'functions': [],
         'classes': [],
         'imports': [],
-        'dependencies': {},
         'complexity_score': 0,
-        'line_count': len(code_content.split('\n')),
-        'metrics': {
-            'comment_ratio': 0,
-            'blank_line_ratio': 0,
-            'avg_function_length': 0
-        }
+        'line_count': len(code_content.split('\n'))
     }
     
     try:
-        lines = code_content.split('\n')
-        comment_lines = sum(1 for line in lines if line.strip().startswith('#'))
-        blank_lines = sum(1 for line in lines if not line.strip())
-        
-        analysis['metrics']['comment_ratio'] = round(comment_lines / len(lines) * 100, 1)
-        analysis['metrics']['blank_line_ratio'] = round(blank_lines / len(lines) * 100, 1)
-        
         if file_extension in ['.py']:
             tree = ast.parse(code_content)
-            function_lengths = []
-            
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef):
-                    func_end = getattr(node, 'end_lineno', node.lineno + 10)
-                    func_length = func_end - node.lineno
-                    function_lengths.append(func_length)
-                    
                     analysis['functions'].append({
                         'name': node.name,
                         'line': node.lineno,
-                        'length': func_length,
-                        'args': [arg.arg for arg in node.args.args],
-                        'complexity': len([n for n in ast.walk(node) if isinstance(n, (ast.If, ast.For, ast.While))])
+                        'args': [arg.arg for arg in node.args.args]
                     })
                 elif isinstance(node, ast.ClassDef):
-                    methods = [n for n in node.body if isinstance(n, ast.FunctionDef)]
                     analysis['classes'].append({
                         'name': node.name,
-                        'line': node.lineno,
-                        'methods': len(methods),
-                        'method_names': [m.name for m in methods]
+                        'line': node.lineno
                     })
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         analysis['imports'].append(alias.name)
-                        analysis['dependencies'][alias.name] = 'standard'
                 elif isinstance(node, ast.ImportFrom):
                     if node.module:
-                        full_import = f"from {node.module}"
-                        analysis['imports'].append(full_import)
-                        analysis['dependencies'][node.module] = 'external' if '.' not in node.module else 'local'
-            
-            if function_lengths:
-                analysis['metrics']['avg_function_length'] = round(sum(function_lengths) / len(function_lengths), 1)
+                        analysis['imports'].append(f"from {node.module}")
         
-        # Enhanced complexity calculation
-        analysis['complexity_score'] = (
-            len(analysis['functions']) + 
-            len(analysis['classes']) * 2 + 
-            len(analysis['imports']) * 0.5
-        )
-        
-        # Code quality score (0-100)
-        quality_score = 100
-        if analysis['metrics']['comment_ratio'] < 10:
-            quality_score -= 20
-        if analysis['metrics']['avg_function_length'] > 20:
-            quality_score -= 15
-        if analysis['complexity_score'] > 50:
-            quality_score -= 25
-            
-        analysis['quality_score'] = max(0, round(quality_score))
+        # Simple complexity estimation
+        analysis['complexity_score'] = len(analysis['functions']) + len(analysis['classes']) * 2
         
     except Exception as e:
         analysis['error'] = f"Code analysis error: {str(e)}"
@@ -613,15 +560,11 @@ def chat():
         # Add current message
         messages.append({"role": "user", "content": user_message})
         
-        # Get selected model from session
-        selected_model = session.get('ai_model', DEFAULT_MODEL)
-        model_config = AVAILABLE_MODELS.get(selected_model, AVAILABLE_MODELS[DEFAULT_MODEL])
-        
         response = openai.chat.completions.create(
-            model=selected_model,
+            model="gpt-4",
             messages=messages,
             temperature=0.7,
-            max_tokens=model_config['max_tokens']
+            max_tokens=3000
         )
         
         assistant_response = response.choices[0].message.content
@@ -702,16 +645,12 @@ def chat_stream():
                 
                 messages.append({"role": "user", "content": user_message})
                 
-                # Get selected model from session
-                selected_model = session.get('ai_model', DEFAULT_MODEL)
-                model_config = AVAILABLE_MODELS.get(selected_model, AVAILABLE_MODELS[DEFAULT_MODEL])
-                
                 # Stream response
                 stream = openai.chat.completions.create(
-                    model=selected_model,
+                    model="gpt-4",
                     messages=messages,
                     temperature=0.7,
-                    max_tokens=model_config['max_tokens'],
+                    max_tokens=3000,
                     stream=True
                 )
                 
@@ -915,121 +854,6 @@ def get_history():
 @app.route('/get_modes', methods=['GET'])
 def get_modes():
     return jsonify({'modes': ASSISTANT_MODES})
-
-@app.route('/set_model', methods=['POST'])
-def set_model():
-    """Set the AI model for the session"""
-    try:
-        data = request.get_json()
-        model = data.get('model', DEFAULT_MODEL)
-        
-        if model not in AVAILABLE_MODELS:
-            return jsonify({'error': 'Invalid model'}), 400
-        
-        session['ai_model'] = model
-        session.modified = True
-        
-        return jsonify({
-            'success': True, 
-            'model': model,
-            'model_info': AVAILABLE_MODELS[model]
-        })
-    except Exception as e:
-        return jsonify({'error': f'Error setting model: {str(e)}'}), 500
-
-@app.route('/get_models', methods=['GET'])
-def get_models():
-    """Get available AI models"""
-    return jsonify({'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL})
-
-@app.route('/get_analytics', methods=['GET'])
-def get_analytics():
-    """Get conversation analytics and insights"""
-    try:
-        session_id = get_session_id()
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Basic conversation stats
-            cursor.execute('''
-                SELECT 
-                    COUNT(*) as total_exchanges,
-                    COUNT(DISTINCT mode) as modes_used,
-                    AVG(LENGTH(user_message)) as avg_user_length,
-                    AVG(LENGTH(assistant_response)) as avg_response_length,
-                    MIN(timestamp) as first_exchange,
-                    MAX(timestamp) as last_exchange
-                FROM chat_exchanges 
-                WHERE session_id = ?
-            ''', (session_id,))
-            
-            stats = dict(cursor.fetchone())
-            
-            # Mode usage statistics
-            cursor.execute('''
-                SELECT mode, COUNT(*) as count
-                FROM chat_exchanges 
-                WHERE session_id = ?
-                GROUP BY mode
-                ORDER BY count DESC
-            ''', (session_id,))
-            
-            mode_stats = [dict(row) for row in cursor.fetchall()]
-            
-            # Recent activity pattern
-            cursor.execute('''
-                SELECT 
-                    DATE(timestamp) as date,
-                    COUNT(*) as exchanges
-                FROM chat_exchanges 
-                WHERE session_id = ? AND datetime(timestamp) >= datetime('now', '-30 days')
-                GROUP BY DATE(timestamp)
-                ORDER BY date DESC
-                LIMIT 30
-            ''', (session_id,))
-            
-            activity_pattern = [dict(row) for row in cursor.fetchall()]
-            
-            return jsonify({
-                'success': True,
-                'stats': stats,
-                'mode_usage': mode_stats,
-                'activity_pattern': activity_pattern,
-                'insights': generate_insights(stats, mode_stats)
-            })
-            
-    except Exception as e:
-        return jsonify({'error': f'Analytics error: {str(e)}'}), 500
-
-def generate_insights(stats, mode_stats):
-    """Generate intelligent insights from conversation data"""
-    insights = []
-    
-    if stats['total_exchanges'] > 0:
-        # Usage insights
-        if stats['total_exchanges'] > 10:
-            insights.append("🎯 You're an active user! Your engagement shows deep architectural thinking.")
-        
-        # Mode preferences
-        if mode_stats:
-            top_mode = mode_stats[0]['mode']
-            mode_name = ASSISTANT_MODES.get(top_mode, {}).get('name', top_mode)
-            insights.append(f"📊 Your favorite mode is {mode_name}, showing focus on this area.")
-        
-        # Communication style
-        avg_user_length = stats.get('avg_user_length', 0)
-        if avg_user_length > 200:
-            insights.append("📝 You provide detailed context, which leads to better AI responses.")
-        elif avg_user_length < 50:
-            insights.append("💡 Try providing more context in your questions for enhanced responses.")
-        
-        # Response complexity
-        avg_response_length = stats.get('avg_response_length', 0)
-        if avg_response_length > 1000:
-            insights.append("🔍 You're getting comprehensive, detailed responses from the AI.")
-    
-    return insights
 
 @app.route('/get_session_info', methods=['GET'])
 def get_session_info():
