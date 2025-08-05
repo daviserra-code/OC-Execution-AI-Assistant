@@ -423,6 +423,74 @@
             margin: 10px 0;
         }
 
+        .message-content .generated-image {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        .message-content .generated-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin: 10px 0;
+        }
+
+        .message-content .image-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .message-content .image-analysis {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .message-content .image-analysis img {
+            max-width: 200px;
+            height: auto;
+            border-radius: 8px;
+            float: right;
+            margin: 0 0 10px 15px;
+        }
+
+        .image-generation-loading {
+            display: inline-block;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .image-generation-loading .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .input-container {
             padding: 20px;
             background: white;
@@ -868,10 +936,13 @@
                     <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceInput()" title="Voice Input (Click and speak)">
                         <i class="fas fa-microphone"></i>
                     </button>
+                    <button id="imageBtn" class="voice-btn" onclick="showImageOptions()" title="Image Generation & Analysis" style="background: linear-gradient(135deg, #9b59b6, #8e44ad); margin-right: 10px;">
+                        <i class="fas fa-image"></i>
+                    </button>
                     <textarea 
                         id="messageInput" 
                         class="message-input" 
-                        placeholder="Ask about architecture patterns, Opcenter development, or describe your technical challenge..."
+                        placeholder="Ask about architecture patterns, Opcenter development, describe your technical challenge, or request image generation..."
                         rows="1"
                     ></textarea>
                     <button id="sendBtn" class="send-btn" onclick="sendMessage()">
@@ -904,6 +975,62 @@
                 <button onclick="exportConversation('markdown')" class="control-btn primary" style="margin: 5px;">
                     <i class="fab fa-markdown"></i> Markdown Format
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Generation Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-image"></i> Image Generation & Analysis</h3>
+                <span class="close" onclick="closeModal('imageModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">🎨 Generate Image</h4>
+                    <textarea 
+                        id="imagePromptInput" 
+                        placeholder="Describe the image you want to generate (e.g., 'A modern software architecture diagram showing microservices', 'A clean UI mockup for a dashboard')"
+                        style="width: 100%; height: 80px; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; resize: vertical;"
+                    ></textarea>
+                    <div style="display: flex; gap: 10px; margin: 10px 0;">
+                        <select id="imageSizeSelect" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                            <option value="1024x1024">Square (1024x1024)</option>
+                            <option value="1792x1024">Landscape (1792x1024)</option>
+                            <option value="1024x1792">Portrait (1024x1792)</option>
+                        </select>
+                        <select id="imageQualitySelect" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                            <option value="standard">Standard Quality</option>
+                            <option value="hd">HD Quality</option>
+                        </select>
+                    </div>
+                    <button onclick="generateImage()" class="control-btn primary" style="width: 100%; margin-bottom: 20px;">
+                        <i class="fas fa-magic"></i> Generate Image
+                    </button>
+                </div>
+                
+                <div style="border-top: 1px solid #e9ecef; padding-top: 20px;">
+                    <h4 style="margin-bottom: 10px;">🔍 Analyze Image</h4>
+                    <input 
+                        type="url" 
+                        id="imageUrlInput" 
+                        placeholder="Enter image URL for analysis..."
+                        style="width: 100%; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; margin-bottom: 10px;"
+                    >
+                    <textarea 
+                        id="imageQuestionInput" 
+                        placeholder="What would you like to know about this image? (optional - defaults to general description)"
+                        style="width: 100%; height: 60px; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; resize: vertical; margin-bottom: 10px;"
+                    ></textarea>
+                    <button onclick="analyzeImage()" class="control-btn secondary" style="width: 100%;">
+                        <i class="fas fa-search"></i> Analyze Image
+                    </button>
+                </div>
+                
+                <div id="imageResult" style="margin-top: 20px; display: none;">
+                    <!-- Results will be shown here -->
+                </div>
             </div>
         </div>
     </div>
@@ -1363,8 +1490,16 @@
         }
 
         function formatMessage(content) {
-            // Enhanced markdown-like formatting
+            // Enhanced markdown-like formatting with image generation support
             let formatted = content
+                // Handle image generation requests
+                .replace(/\[GENERATE_IMAGE:\s*(.*?)\]/g, function(match, prompt) {
+                    generateImageFromPrompt(prompt.trim());
+                    return `<div class="image-generation-loading">
+                        <div class="spinner"></div>
+                        Generating image: "${prompt.trim()}"...
+                    </div>`;
+                })
                 .replace(/```mermaid\n([\s\S]*?)```/g, function(match, diagram) {
                     const cleanDiagram = diagram.trim();
                     const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
@@ -1386,6 +1521,185 @@
             }, 100);
             
             return formatted;
+        }
+
+        function showImageOptions() {
+            document.getElementById('imageModal').style.display = 'block';
+        }
+
+        function generateImage() {
+            const prompt = document.getElementById('imagePromptInput').value.trim();
+            const size = document.getElementById('imageSizeSelect').value;
+            const quality = document.getElementById('imageQualitySelect').value;
+            
+            if (!prompt) {
+                alert('Please enter an image description');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('imageResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="image-generation-loading">
+                    <div class="spinner"></div>
+                    Generating image: "${prompt}"...
+                </div>
+            `;
+            
+            fetch('/generate_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: prompt,
+                    size: size,
+                    quality: quality
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="generated-image">
+                            <h4>✨ Generated Image</h4>
+                            <img src="${data.image_url}" alt="Generated: ${data.prompt}" />
+                            <div class="image-info">
+                                <strong>Original Prompt:</strong> ${data.prompt}<br>
+                                <strong>Refined Prompt:</strong> ${data.revised_prompt}<br>
+                                <strong>Size:</strong> ${data.size} | <strong>Quality:</strong> ${data.quality}
+                            </div>
+                            <button onclick="addImageToChat('${data.image_url}', '${data.prompt}', '${data.revised_prompt}')" class="control-btn primary" style="margin-top: 10px;">
+                                <i class="fas fa-plus"></i> Add to Chat
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            });
+        }
+
+        function generateImageFromPrompt(prompt) {
+            fetch('/generate_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: prompt,
+                    size: '1024x1024',
+                    quality: 'standard'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Find the loading div and replace it
+                    const loadingDivs = document.querySelectorAll('.image-generation-loading');
+                    const targetDiv = Array.from(loadingDivs).find(div => 
+                        div.textContent.includes(prompt)
+                    );
+                    
+                    if (targetDiv) {
+                        targetDiv.outerHTML = `
+                            <div class="generated-image">
+                                <h4>✨ Generated Image</h4>
+                                <img src="${data.image_url}" alt="Generated: ${data.prompt}" />
+                                <div class="image-info">
+                                    <strong>Prompt:</strong> ${data.revised_prompt}<br>
+                                    <strong>Size:</strong> ${data.size} | <strong>Quality:</strong> ${data.quality}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Auto image generation error:', error);
+            });
+        }
+
+        function analyzeImage() {
+            const imageUrl = document.getElementById('imageUrlInput').value.trim();
+            const question = document.getElementById('imageQuestionInput').value.trim() || 'Describe this image in detail';
+            
+            if (!imageUrl) {
+                alert('Please enter an image URL');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('imageResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="image-generation-loading">
+                    <div class="spinner"></div>
+                    Analyzing image...
+                </div>
+            `;
+            
+            fetch('/analyze_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    image_url: imageUrl,
+                    question: question
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="image-analysis">
+                            <img src="${data.image_url}" alt="Analyzed image" />
+                            <h4>🔍 Image Analysis</h4>
+                            <p><strong>Question:</strong> ${data.question}</p>
+                            <div style="clear: both; margin-top: 10px;">
+                                <strong>Analysis:</strong><br>
+                                ${data.analysis.replace(/\n/g, '<br>')}
+                            </div>
+                            <button onclick="addAnalysisToChat('${data.image_url}', '${data.question}', '${btoa(encodeURIComponent(data.analysis))}')" class="control-btn primary" style="margin-top: 10px;">
+                                <i class="fas fa-plus"></i> Add to Chat
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            });
+        }
+
+        function addImageToChat(imageUrl, originalPrompt, revisedPrompt) {
+            const imageMessage = `🎨 **Generated Image**
+
+**Prompt:** ${originalPrompt}
+**Refined Prompt:** ${revisedPrompt}
+
+![Generated Image](${imageUrl})
+
+*Image generated using DALL-E 3*`;
+            
+            addMessage('assistant', imageMessage);
+            closeModal('imageModal');
+        }
+
+        function addAnalysisToChat(imageUrl, question, encodedAnalysis) {
+            const analysis = decodeURIComponent(atob(encodedAnalysis));
+            const analysisMessage = `🔍 **Image Analysis**
+
+**Question:** ${question}
+
+![Analyzed Image](${imageUrl})
+
+**Analysis:**
+${analysis}
+
+*Analysis provided by GPT-4 Vision*`;
+            
+            addMessage('assistant', analysisMessage);
+            closeModal('imageModal');
         }
 
         function renderMermaidDiagrams() {

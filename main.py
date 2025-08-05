@@ -15,6 +15,9 @@ import queue
 import sqlite3
 from contextlib import contextmanager
 import numpy as np
+import requests
+from PIL import Image
+import io
 try:
     from sentence_transformers import SentenceTransformer
     import faiss
@@ -219,6 +222,14 @@ ASSISTANT_MODES = {
         "name": "General Architecture",
         "icon": "🏗️",
         "prompt": """You are a highly experienced and proactive Software Architecture Assistant specializing in modern software patterns, architectural decision-making, documentation, and stakeholder communication, as well as a coding assistant for Siemens Opcenter Execution Foundation, Process, and Discrete platforms.
+
+## Enhanced Capabilities
+
+### Image Generation and Visual Communication:
+- **Diagram Creation**: When users request visual diagrams, architecture drawings, or illustrations, you can generate them using DALL-E by responding with the special format: `[GENERATE_IMAGE: detailed description of the image to generate]`
+- **Image Analysis**: You can analyze uploaded images, screenshots, diagrams, or generated images to provide detailed feedback and suggestions
+- **Visual Architecture**: Create visual representations of system architectures, data flows, and technical concepts
+- **UI/UX Mockups**: Generate mockups and visual examples for user interfaces and system designs
 
 # Responsibilities and Areas of Focus
 
@@ -1158,6 +1169,106 @@ def save_chat():
         
     except Exception as e:
         return jsonify({'error': f'Error saving chat: {str(e)}'}), 500
+
+@app.route('/generate_image', methods=['POST'])
+def generate_image():
+    """Generate images using DALL-E"""
+    try:
+        data = request.get_json()
+        prompt = data.get('prompt', '').strip()
+        size = data.get('size', '1024x1024')  # Default size
+        quality = data.get('quality', 'standard')  # standard or hd
+        
+        if not prompt:
+            return jsonify({'error': 'Image prompt cannot be empty'}), 400
+        
+        if not openai.api_key:
+            return jsonify({'error': 'OpenAI API key not configured'}), 500
+        
+        # Generate image using DALL-E
+        response = openai.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size=size,
+            quality=quality,
+            n=1,
+        )
+        
+        image_url = response.data[0].url
+        revised_prompt = response.data[0].revised_prompt
+        
+        # Save image info to session for context
+        session_id = get_session_id()
+        if 'generated_images' not in session:
+            session['generated_images'] = []
+        
+        image_info = {
+            'url': image_url,
+            'prompt': prompt,
+            'revised_prompt': revised_prompt,
+            'timestamp': datetime.now().isoformat(),
+            'size': size,
+            'quality': quality
+        }
+        
+        session['generated_images'].append(image_info)
+        session.modified = True
+        
+        return jsonify({
+            'success': True,
+            'image_url': image_url,
+            'revised_prompt': revised_prompt,
+            'prompt': prompt,
+            'size': size,
+            'quality': quality
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Image generation error: {str(e)}'}), 500
+
+@app.route('/analyze_image', methods=['POST'])
+def analyze_image():
+    """Analyze uploaded images using GPT-4 Vision"""
+    try:
+        data = request.get_json()
+        image_url = data.get('image_url', '')
+        question = data.get('question', 'Describe this image in detail')
+        
+        if not image_url:
+            return jsonify({'error': 'Image URL is required'}), 400
+        
+        if not openai.api_key:
+            return jsonify({'error': 'OpenAI API key not configured'}), 500
+        
+        # Use GPT-4 Vision to analyze the image
+        response = openai.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1000
+        )
+        
+        analysis = response.choices[0].message.content
+        
+        return jsonify({
+            'success': True,
+            'analysis': analysis,
+            'question': question,
+            'image_url': image_url
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Image analysis error: {str(e)}'}), 500
 
 @app.route('/save_system_prompt', methods=['POST'])
 def save_system_prompt():
