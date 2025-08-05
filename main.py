@@ -34,9 +34,11 @@ try:
 except ImportError:
     HAS_DOC_SUPPORT = False
 
+# Create Flask app instance FIRST - before any other operations
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
 
+# Set OpenAI API key
 openai.api_key = os.environ.get('OPENAI_API_KEY', '')
 
 # AI Model Configuration
@@ -51,8 +53,9 @@ DEFAULT_MODEL = 'gpt-4'
 DATABASE_PATH = 'chat_history.db'
 
 def init_database():
-    """Initialize the SQLite database with required tables"""
-    with sqlite3.connect(DATABASE_PATH) as conn:
+    """Initialize the SQLite database with required tables - NO Flask context needed"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -91,16 +94,27 @@ def init_database():
             CREATE INDEX IF NOT EXISTS idx_mode ON system_prompts (mode)
         ''')
         conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Database initialization error: {e}")
+        raise
 
 def get_db():
     """Get database connection from Flask g object or create direct connection"""
-    if has_app_context():
-        if 'db' not in g:
+    try:
+        if has_app_context() and 'db' not in g:
             g.db = sqlite3.connect(DATABASE_PATH)
             g.db.row_factory = sqlite3.Row
-        return g.db
-    else:
-        # Create direct connection when outside app context
+            return g.db
+        elif has_app_context():
+            return g.db
+        else:
+            # Create direct connection when outside app context
+            conn = sqlite3.connect(DATABASE_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
+    except RuntimeError:
+        # Fallback for any Flask context issues
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
@@ -124,37 +138,37 @@ def create_session_id():
 
 def get_or_create_session_id():
     """Get session ID from Flask session or create new one"""
-    if not has_app_context():
-        # Return a temporary session ID when outside request context
-        return create_session_id()
-        
-    if 'user_session_id' not in session:
-        session['user_session_id'] = create_session_id()
-        session.modified = True
+    try:
+        if 'user_session_id' not in session:
+            session['user_session_id'] = create_session_id()
+            session.modified = True
 
-        # Create session in database
-        try:
-            db = get_db()
-            cursor = db.cursor()
-            cursor.execute(
-                'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
-                (session['user_session_id'],)
-            )
-            if has_app_context():
+            # Create session in database
+            try:
+                db = get_db()
+                cursor = db.cursor()
+                cursor.execute(
+                    'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
+                    (session['user_session_id'],)
+                )
                 db.commit()
-            else:
-                db.close()
-            print(f"✅ Created new session: {session['user_session_id'][:8]}...")
-        except Exception as e:
-            print(f"❌ Error creating session in database: {e}")
+                if not has_app_context():
+                    db.close()
+                print(f"✅ Created new session: {session['user_session_id'][:8]}...")
+            except Exception as e:
+                print(f"❌ Error creating session in database: {e}")
 
-    return session['user_session_id']
+        return session['user_session_id']
+    except RuntimeError:
+        # Outside request context - return temporary ID
+        return create_session_id()
 
 def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
     """Save a chat exchange to the database"""
     try:
-        db = get_db()
-        cursor = db.cursor()
+        # Use direct connection to avoid Flask context issues
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
 
         # Ensure session exists first
         cursor.execute('''
@@ -174,11 +188,8 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
             WHERE session_id = ?
         ''', (session_id,))
 
-        db.commit()
-        
-        # Close connection if we're outside app context
-        if not has_app_context():
-            db.close()
+        conn.commit()
+        conn.close()
             
         print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
@@ -187,8 +198,10 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
     try:
-        db = get_db()
-        cursor = db.cursor()
+        # Use direct connection to avoid Flask context issues
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
         cursor.execute('''
             SELECT user_message, assistant_response, mode, timestamp
             FROM chat_exchanges
@@ -208,9 +221,7 @@ def load_chat_history(session_id, limit=50):
             for row in rows
         ]
         
-        # Close connection if we're outside app context
-        if not has_app_context():
-            db.close()
+        conn.close()
             
         print(f"Successfully loaded {len(history)} exchanges from database")
         return history
@@ -220,14 +231,15 @@ def load_chat_history(session_id, limit=50):
 
 def clear_session_history(session_id):
     """Clear chat history for a specific session"""
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
-    db.commit()
-    
-    # Close connection if we're outside app context
-    if not has_app_context():
-        db.close()
+    try:
+        # Use direct connection to avoid Flask context issues
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Error clearing session history: {e}")
 
 # Initialize vector database for enhanced AI capabilities
 vector_db = None
@@ -244,31 +256,31 @@ def initialize_vector_db():
         except Exception as e:
             print(f"⚠️  Could not initialize vector database: {e}")
 
-# Initialize database on startup - NO Flask context needed
+# Initialize database and other components AFTER Flask app is created
 try:
+    # Initialize database tables
     init_database()
     print("✅ Database initialized successfully")
 
     # Test database connection
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
-    try:
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
-        session_count = cursor.fetchone()['count']
-        cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
-        exchange_count = cursor.fetchone()['count']
-        print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
-    finally:
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
+    session_count = cursor.fetchone()['count']
+    cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
+    exchange_count = cursor.fetchone()['count']
+    print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
+    conn.close()
 
     # Initialize vector database
     initialize_vector_db()
+    
+    if not openai.api_key:
+        print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
+        
 except Exception as e:
-    print(f"❌ Database initialization error: {e}")
-
-if not openai.api_key:
-    print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
+    print(f"❌ Initialization error: {e}")
 
 # Response cache for similar questions
 response_cache = {}
