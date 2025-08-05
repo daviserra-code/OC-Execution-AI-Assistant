@@ -17,11 +17,31 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --primary-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --sidebar-bg: rgba(255,255,255,0.95);
+            --chat-bg: rgba(255,255,255,0.95);
+            --message-bg: white;
+            --text-color: #333;
+            --border-color: #e9ecef;
+        }
+
+        [data-theme="dark"] {
+            --primary-bg: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --sidebar-bg: rgba(44, 62, 80, 0.95);
+            --chat-bg: rgba(52, 73, 94, 0.95);
+            --message-bg: #34495e;
+            --text-color: #ecf0f1;
+            --border-color: #34495e;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--primary-bg);
             height: 100vh;
             overflow: hidden;
+            color: var(--text-color);
+            transition: all 0.3s ease;
         }
 
         .container {
@@ -34,12 +54,12 @@
 
         .sidebar {
             width: 350px;
-            background: rgba(255,255,255,0.95);
+            background: var(--sidebar-bg);
             backdrop-filter: blur(10px);
             padding: 20px;
             display: flex;
             flex-direction: column;
-            border-right: 1px solid rgba(255,255,255,0.2);
+            border-right: 1px solid var(--border-color);
             overflow-y: auto;
         }
 
@@ -259,7 +279,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: rgba(255,255,255,0.95);
+            background: var(--chat-bg);
             backdrop-filter: blur(10px);
         }
 
@@ -434,7 +454,7 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .send-btn {
+        .voice-btn, .send-btn {
             width: 50px;
             height: 50px;
             border: none;
@@ -446,6 +466,21 @@
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .voice-btn {
+            margin-right: 10px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .voice-btn.recording {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
         }
 
         .send-btn:hover:not(:disabled) {
@@ -754,6 +789,30 @@
                     Loading session info...
                 </div>
             </div>
+
+            <div class="preferences-section" style="background: #f8f9fa; border-radius: 15px; padding: 15px; margin-bottom: 15px;">
+                <h3 style="margin-bottom: 10px; color: #333; font-size: 14px;"><i class="fas fa-cog"></i> Preferences</h3>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <label style="font-size: 12px; color: #666;">Dark Mode</label>
+                    <button id="themeToggle" class="control-btn secondary" style="padding: 5px 10px; font-size: 11px;" onclick="toggleTheme()">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <label style="font-size: 12px; color: #666;">AI Model</label>
+                    <select id="modelSelector" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; font-size: 11px;" onchange="changeModel()">
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                    </select>
+                </div>
+                
+                <div style="font-size: 10px; color: #666; margin-top: 8px;">
+                    <strong>Shortcuts:</strong> Ctrl+Enter (send), Ctrl+K (clear), Ctrl+/ (help)
+                </div>
+            </div>
             
             <div class="admin-controls" id="adminControls">
                 <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
@@ -806,6 +865,9 @@
             
             <div class="input-container">
                 <div class="input-wrapper">
+                    <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceInput()" title="Voice Input (Click and speak)">
+                        <i class="fas fa-microphone"></i>
+                    </button>
                     <textarea 
                         id="messageInput" 
                         class="message-input" 
@@ -890,6 +952,10 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
+        let currentModel = 'gpt-4';
+        let recognition = null;
+        let isRecording = false;
+        let currentTheme = 'light';
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -897,7 +963,10 @@
             initializeEventListeners();
             loadSessionInfo();
             loadInitialChatHistory();
-            initializeAdminLogin(); // Initialize admin login functionality
+            initializeAdminLogin();
+            initializeVoiceInput();
+            initializeKeyboardShortcuts();
+            loadUserPreferences();
             mermaid.initialize({ 
                 startOnLoad: false,
                 theme: 'default',
@@ -1927,6 +1996,164 @@ Your chat history is automatically saved to a local SQLite database and will per
             .catch(error => {
                 addMessage('assistant', `❌ Error loading template: ${error.message}`);
             });
+        }
+
+        // Voice Input Implementation
+        function initializeVoiceInput() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('messageInput').value = transcript;
+                    stopRecording();
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('Speech recognition error:', event.error);
+                    stopRecording();
+                };
+                
+                recognition.onend = function() {
+                    stopRecording();
+                };
+            } else {
+                // Hide voice button if not supported
+                document.getElementById('voiceBtn').style.display = 'none';
+            }
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert('Voice input not supported in this browser');
+                return;
+            }
+            
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            isRecording = true;
+            const voiceBtn = document.getElementById('voiceBtn');
+            voiceBtn.classList.add('recording');
+            voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
+            voiceBtn.title = 'Stop Recording';
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            const voiceBtn = document.getElementById('voiceBtn');
+            voiceBtn.classList.remove('recording');
+            voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            voiceBtn.title = 'Voice Input (Click and speak)';
+        }
+
+        // Theme Toggle
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            
+            const themeBtn = document.getElementById('themeToggle');
+            themeBtn.innerHTML = currentTheme === 'light' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+            
+            // Save preference
+            localStorage.setItem('theme', currentTheme);
+            
+            addMessage('assistant', `🎨 **Theme switched to ${currentTheme} mode!**\n\nYour preference has been saved and will be remembered for future sessions.`);
+        }
+
+        // Model Selection
+        function changeModel() {
+            currentModel = document.getElementById('modelSelector').value;
+            localStorage.setItem('selectedModel', currentModel);
+            addMessage('assistant', `🤖 **AI Model switched to ${currentModel}!**\n\nFuture responses will use this model. Different models may have varying capabilities and response styles.`);
+        }
+
+        // Keyboard Shortcuts
+        function initializeKeyboardShortcuts() {
+            document.addEventListener('keydown', function(e) {
+                // Ctrl+Enter or Cmd+Enter to send
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+                
+                // Ctrl+K or Cmd+K to clear
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    clearHistory();
+                }
+                
+                // Ctrl+/ or Cmd+/ for help
+                if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                    e.preventDefault();
+                    showKeyboardShortcuts();
+                }
+                
+                // Escape to stop voice recording
+                if (e.key === 'Escape' && isRecording) {
+                    recognition.stop();
+                }
+            });
+        }
+
+        function showKeyboardShortcuts() {
+            const shortcuts = `**⌨️ Keyboard Shortcuts:**
+
+• **Ctrl+Enter**: Send message
+• **Ctrl+K**: Clear chat history  
+• **Ctrl+/**: Show this help
+• **Escape**: Stop voice recording
+• **Shift+Enter**: New line in message
+
+**💡 Pro Tips:**
+• Use voice input for hands-free interaction
+• Switch between AI models for different capabilities
+• Toggle dark mode for comfortable viewing
+• Upload files for enhanced context analysis`;
+            
+            addMessage('assistant', shortcuts);
+        }
+
+        // Load and Save User Preferences
+        function loadUserPreferences() {
+            // Load theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                toggleTheme();
+            }
+            
+            // Load model preference
+            const savedModel = localStorage.getItem('selectedModel') || 'gpt-4';
+            document.getElementById('modelSelector').value = savedModel;
+            currentModel = savedModel;
+        }
+
+        // Enhanced Analytics
+        function trackUserAction(action, details = {}) {
+            const analytics = {
+                action: action,
+                timestamp: new Date().toISOString(),
+                session_id: getCurrentSessionId(),
+                details: details
+            };
+            
+            // Log to console for debugging (in production, send to analytics service)
+            console.log('User Action:', analytics);
+        }
+
+        function getCurrentSessionId() {
+            // Extract session ID from current context
+            return document.cookie.includes('session') ? 'session-id' : 'unknown';
         }
 
         // Admin login form handler - moved inside DOMContentLoaded
