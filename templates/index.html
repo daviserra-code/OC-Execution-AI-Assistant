@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -423,6 +422,74 @@
             margin: 10px 0;
         }
 
+        .message-content .generated-image {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        .message-content .generated-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin: 10px 0;
+        }
+
+        .message-content .image-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .message-content .image-analysis {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .message-content .image-analysis img {
+            max-width: 200px;
+            height: auto;
+            border-radius: 8px;
+            float: right;
+            margin: 0 0 10px 15px;
+        }
+
+        .image-generation-loading {
+            display: inline-block;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .image-generation-loading .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .input-container {
             padding: 20px;
             background: white;
@@ -700,13 +767,13 @@
             .container {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 height: auto;
                 max-height: 50vh;
             }
-            
+
             .message-content {
                 max-width: 95%;
             }
@@ -745,14 +812,14 @@
                 <h1>🏗️ Architecture Assistant</h1>
                 <p>Advanced Software Architecture & Opcenter Expert</p>
             </div>
-            
+
             <div class="mode-selector">
                 <h3><i class="fas fa-cog"></i> Assistant Mode</h3>
                 <div class="mode-buttons" id="modeButtons">
                     <!-- Modes will be populated by JavaScript -->
                 </div>
             </div>
-            
+
             <div class="upload-section">
                 <h3><i class="fas fa-upload"></i> Upload Files</h3>
                 <div class="file-input-wrapper">
@@ -766,7 +833,7 @@
                     Supports: Code files, Documents, Images, etc.
                 </p>
             </div>
-            
+
             <div class="templates-section">
                 <h3><i class="fas fa-file-alt"></i> Quick Templates</h3>
                 <button class="template-btn" onclick="loadTemplate('adr')">
@@ -779,7 +846,7 @@
                     👨‍💻 Code Review Checklist
                 </button>
             </div>
-            
+
             <div class="session-info" style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
                 <div style="display: flex; align-items: center; margin-bottom: 5px;">
                     <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
@@ -792,14 +859,14 @@
 
             <div class="preferences-section" style="background: #f8f9fa; border-radius: 15px; padding: 15px; margin-bottom: 15px;">
                 <h3 style="margin-bottom: 10px; color: #333; font-size: 14px;"><i class="fas fa-cog"></i> Preferences</h3>
-                
+
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                     <label style="font-size: 12px; color: #666;">Dark Mode</label>
                     <button id="themeToggle" class="control-btn secondary" style="padding: 5px 10px; font-size: 11px;" onclick="toggleTheme()">
                         <i class="fas fa-moon"></i>
                     </button>
                 </div>
-                
+
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                     <label style="font-size: 12px; color: #666;">AI Model</label>
                     <select id="modelSelector" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; font-size: 11px;" onchange="changeModel()">
@@ -808,12 +875,12 @@
                         <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                     </select>
                 </div>
-                
+
                 <div style="font-size: 10px; color: #666; margin-top: 8px;">
                     <strong>Shortcuts:</strong> Ctrl+Enter (send), Ctrl+K (clear), Ctrl+/ (help)
                 </div>
             </div>
-            
+
             <div class="admin-controls" id="adminControls">
                 <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
                 <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
@@ -845,7 +912,7 @@
                 </button>
             </div>
         </div>
-        
+
         <div class="chat-container">
             <div class="chat-header">
                 <div>
@@ -858,20 +925,23 @@
                     </div>
                 </div>
             </div>
-            
+
             <div id="chatMessages" class="chat-messages">
                 <!-- Chat history will be loaded here -->
             </div>
-            
+
             <div class="input-container">
                 <div class="input-wrapper">
                     <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceInput()" title="Voice Input (Click and speak)">
                         <i class="fas fa-microphone"></i>
                     </button>
+                    <button id="imageBtn" class="voice-btn" onclick="showImageOptions()" title="Image Generation & Analysis" style="background: linear-gradient(135deg, #9b59b6, #8e44ad); margin-right: 10px;">
+                        <i class="fas fa-image"></i>
+                    </button>
                     <textarea 
                         id="messageInput" 
                         class="message-input" 
-                        placeholder="Ask about architecture patterns, Opcenter development, or describe your technical challenge..."
+                        placeholder="Ask about architecture patterns, Opcenter development, describe your technical challenge, or request image generation..."
                         rows="1"
                     ></textarea>
                     <button id="sendBtn" class="send-btn" onclick="sendMessage()">
@@ -904,6 +974,62 @@
                 <button onclick="exportConversation('markdown')" class="control-btn primary" style="margin: 5px;">
                     <i class="fab fa-markdown"></i> Markdown Format
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Generation Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-image"></i> Image Generation & Analysis</h3>
+                <span class="close" onclick="closeModal('imageModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">🎨 Generate Image</h4>
+                    <textarea 
+                        id="imagePromptInput" 
+                        placeholder="Describe the image you want to generate (e.g., 'A modern software architecture diagram showing microservices', 'A clean UI mockup for a dashboard')"
+                        style="width: 100%; height: 80px; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; resize: vertical;"
+                    ></textarea>
+                    <div style="display: flex; gap: 10px; margin: 10px 0;">
+                        <select id="imageSizeSelect" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                            <option value="1024x1024">Square (1024x1024)</option>
+                            <option value="1792x1024">Landscape (1792x1024)</option>
+                            <option value="1024x1792">Portrait (1024x1792)</option>
+                        </select>
+                        <select id="imageQualitySelect" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                            <option value="standard">Standard Quality</option>
+                            <option value="hd">HD Quality</option>
+                        </select>
+                    </div>
+                    <button onclick="generateImage()" class="control-btn primary" style="width: 100%; margin-bottom: 20px;">
+                        <i class="fas fa-magic"></i> Generate Image
+                    </button>
+                </div>
+
+                <div style="border-top: 1px solid #e9ecef; padding-top: 20px;">
+                    <h4 style="margin-bottom: 10px;">🔍 Analyze Image</h4>
+                    <input 
+                        type="url" 
+                        id="imageUrlInput" 
+                        placeholder="Enter image URL for analysis..."
+                        style="width: 100%; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; margin-bottom: 10px;"
+                    >
+                    <textarea 
+                        id="imageQuestionInput" 
+                        placeholder="What would you like to know about this image? (optional - defaults to general description)"
+                        style="width: 100%; height: 60px; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; resize: vertical; margin-bottom: 10px;"
+                    ></textarea>
+                    <button onclick="analyzeImage()" class="control-btn secondary" style="width: 100%;">
+                        <i class="fas fa-search"></i> Analyze Image
+                    </button>
+                </div>
+
+                <div id="imageResult" style="margin-top: 20px; display: none;">
+                    <!-- Results will be shown here -->
+                </div>
             </div>
         </div>
     </div>
@@ -956,13 +1082,20 @@
         let recognition = null;
         let isRecording = false;
         let currentTheme = 'light';
-        
+        let chatHistory = []; // Initialize chatHistory array
+
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
-            loadModes();
+            // Load initial data with error handling
+            try {
+                loadModes();
+                loadSessionInfo();
+                loadInitialChatHistory(); // Corrected function name
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+                // Don't refresh page on error, just log it
+            }
             initializeEventListeners();
-            loadSessionInfo();
-            loadInitialChatHistory();
             initializeAdminLogin();
             initializeVoiceInput();
             initializeKeyboardShortcuts();
@@ -1020,7 +1153,7 @@
                 availableModes = data.modes;
                 const modeButtons = document.getElementById('modeButtons');
                 modeButtons.innerHTML = '';
-                
+
                 Object.keys(availableModes).forEach(modeKey => {
                     const mode = availableModes[modeKey];
                     const button = document.createElement('button');
@@ -1030,7 +1163,7 @@
                     button.onclick = () => setAssistantMode(modeKey);
                     modeButtons.appendChild(button);
                 });
-                
+
                 // Set general mode as active by default
                 setAssistantMode('general');
             });
@@ -1050,10 +1183,10 @@
                         btn.classList.remove('active');
                     });
                     document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-                    
+
                     const modeDisplay = document.getElementById('currentModeDisplay');
                     modeDisplay.innerHTML = `${data.mode_info.icon} ${data.mode_info.name}`;
-                    
+
                     addMessage('assistant', `🔄 **Mode switched to: ${data.mode_info.name}**\n\nI'm now optimized for ${data.mode_info.name.toLowerCase()} tasks. How can I help you?`);
                 }
             });
@@ -1062,14 +1195,14 @@
         function handleFileUpload(event) {
             const files = event.target.files;
             const preview = document.getElementById('filePreview');
-            
+
             if (files.length > 0) {
                 preview.innerHTML = '';
-                
+
                 Array.from(files).forEach(file => {
                     const formData = new FormData();
                     formData.append('file', file);
-                    
+
                     fetch('/upload', {
                         method: 'POST',
                         body: formData
@@ -1118,20 +1251,20 @@
 
         function sendMessage(regenerate = false) {
             if (isLoading) return;
-            
+
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message && !regenerate) return;
-            
+
             if (!regenerate) {
                 addMessage('user', message);
                 input.value = '';
                 input.style.height = 'auto';
             }
-            
+
             showStreamingIndicator();
-            
+
             // Use regular chat for regeneration, streaming for new messages
             if (regenerate) {
                 regularChat(message, true);
@@ -1143,11 +1276,11 @@
         function streamingChat(message) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-            
+
             // Add placeholder message for streaming
             const messageDiv = addMessage('assistant', '', true);
             const contentDiv = messageDiv.querySelector('.message-content');
-            
+
             fetch('/chat_stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1157,24 +1290,24 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullResponse = '';
-                
+
                 function readStream() {
                     return reader.read().then(({ done, value }) => {
                         if (done) {
                             hideStreamingIndicator();
                             addMessageActions(messageDiv, fullResponse);
                             renderMermaidDiagrams();
-                            
+
                             // Save chat history after streaming completes
                             if (fullResponse) {
                                 saveChatToSession(message, fullResponse);
                             }
                             return;
                         }
-                        
+
                         const chunk = decoder.decode(value);
                         const lines = chunk.split('\n');
-                        
+
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
                                 try {
@@ -1190,12 +1323,12 @@
                                     } else if (data.done) {
                                         hideStreamingIndicator();
                                         addMessageActions(messageDiv, fullResponse);
-                                        
+
                                         // Final render of Mermaid diagrams after streaming is complete
                                         setTimeout(() => {
                                             renderMermaidDiagrams();
                                         }, 500);
-                                        
+
                                         // Save chat history after streaming completes
                                         if (fullResponse) {
                                             saveChatToSession(message, fullResponse);
@@ -1207,11 +1340,11 @@
                                 }
                             }
                         }
-                        
+
                         return readStream();
                     });
                 }
-                
+
                 return readStream();
             })
             .catch(error => {
@@ -1224,9 +1357,9 @@
             // Get current mode from UI
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-            
+
             console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
-            
+
             fetch('/save_chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1254,7 +1387,7 @@
         function regularChat(message, regenerate = false) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-            
+
             fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1286,17 +1419,17 @@
             messageDiv.className = `message ${sender}`;
             currentMessageIndex++;
             messageDiv.setAttribute('data-message-id', currentMessageIndex);
-            
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            
+
             if (!isPlaceholder) {
                 contentDiv.innerHTML = formatMessage(content);
             }
-            
+
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
-            
+
             scrollToBottom();
             return messageDiv;
         }
@@ -1304,7 +1437,7 @@
         function addMessageActions(messageDiv, content) {
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-actions';
-            
+
             if (messageDiv.classList.contains('assistant')) {
                 actionsDiv.innerHTML = `
                     <button class="action-btn regenerate" onclick="regenerateResponse(${messageDiv.getAttribute('data-message-id')})">
@@ -1321,7 +1454,7 @@
                     </button>
                 `;
             }
-            
+
             messageDiv.appendChild(actionsDiv);
         }
 
@@ -1344,7 +1477,7 @@
                     toRemove.remove();
                 }
                 messageDiv.remove();
-                
+
                 // Regenerate the response
                 sendMessage(true);
             }
@@ -1363,8 +1496,16 @@
         }
 
         function formatMessage(content) {
-            // Enhanced markdown-like formatting
+            // Enhanced markdown-like formatting with image generation support
             let formatted = content
+                // Handle image generation requests
+                .replace(/\[GENERATE_IMAGE:\s*(.*?)\]/g, function(match, prompt) {
+                    generateImageFromPrompt(prompt.trim());
+                    return `<div class="image-generation-loading">
+                        <div class="spinner"></div>
+                        Generating image: "${prompt.trim()}"...
+                    </div>`;
+                })
                 .replace(/```mermaid\n([\s\S]*?)```/g, function(match, diagram) {
                     const cleanDiagram = diagram.trim();
                     const diagramId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
@@ -1379,13 +1520,192 @@
                 .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
                 .replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>')
                 .replace(/\n/g, '<br>');
-            
+
             // Process Mermaid diagrams after a short delay
             setTimeout(() => {
                 renderMermaidDiagrams();
             }, 100);
-            
+
             return formatted;
+        }
+
+        function showImageOptions() {
+            document.getElementById('imageModal').style.display = 'block';
+        }
+
+        function generateImage() {
+            const prompt = document.getElementById('imagePromptInput').value.trim();
+            const size = document.getElementById('imageSizeSelect').value;
+            const quality = document.getElementById('imageQualitySelect').value;
+
+            if (!prompt) {
+                alert('Please enter an image description');
+                return;
+            }
+
+            const resultDiv = document.getElementById('imageResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="image-generation-loading">
+                    <div class="spinner"></div>
+                    Generating image: "${prompt}"...
+                </div>
+            `;
+
+            fetch('/generate_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: prompt,
+                    size: size,
+                    quality: quality
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="generated-image">
+                            <h4>✨ Generated Image</h4>
+                            <img src="${data.image_url}" alt="Generated: ${data.prompt}" />
+                            <div class="image-info">
+                                <strong>Original Prompt:</strong> ${data.prompt}<br>
+                                <strong>Refined Prompt:</strong> ${data.revised_prompt}<br>
+                                <strong>Size:</strong> ${data.size} | <strong>Quality:</strong> ${data.quality}
+                            </div>
+                            <button onclick="addImageToChat('${data.image_url}', '${data.prompt}', '${data.revised_prompt}')" class="control-btn primary" style="margin-top: 10px;">
+                                <i class="fas fa-plus"></i> Add to Chat
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            });
+        }
+
+        function generateImageFromPrompt(prompt) {
+            fetch('/generate_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: prompt,
+                    size: '1024x1024',
+                    quality: 'standard'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Find the loading div and replace it
+                    const loadingDivs = document.querySelectorAll('.image-generation-loading');
+                    const targetDiv = Array.from(loadingDivs).find(div => 
+                        div.textContent.includes(prompt)
+                    );
+
+                    if (targetDiv) {
+                        targetDiv.outerHTML = `
+                            <div class="generated-image">
+                                <h4>✨ Generated Image</h4>
+                                <img src="${data.image_url}" alt="Generated: ${data.prompt}" />
+                                <div class="image-info">
+                                    <strong>Prompt:</strong> ${data.revised_prompt}<br>
+                                    <strong>Size:</strong> ${data.size} | <strong>Quality:</strong> ${data.quality}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Auto image generation error:', error);
+            });
+        }
+
+        function analyzeImage() {
+            const imageUrl = document.getElementById('imageUrlInput').value.trim();
+            const question = document.getElementById('imageQuestionInput').value.trim() || 'Describe this image in detail';
+
+            if (!imageUrl) {
+                alert('Please enter an image URL');
+                return;
+            }
+
+            const resultDiv = document.getElementById('imageResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="image-generation-loading">
+                    <div class="spinner"></div>
+                    Analyzing image...
+                </div>
+            `;
+
+            fetch('/analyze_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    image_url: imageUrl,
+                    question: question
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="image-analysis">
+                            <img src="${data.image_url}" alt="Analyzed image" />
+                            <h4>🔍 Image Analysis</h4>
+                            <p><strong>Question:</strong> ${data.question}</p>
+                            <div style="clear: both; margin-top: 10px;">
+                                <strong>Analysis:</strong><br>
+                                ${data.analysis.replace(/\n/g, '<br>')}
+                            </div>
+                            <button onclick="addAnalysisToChat('${data.image_url}', '${data.question}', '${btoa(encodeURIComponent(data.analysis))}')" class="control-btn primary" style="margin-top: 10px;">
+                                <i class="fas fa-plus"></i> Add to Chat
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            });
+        }
+
+        function addImageToChat(imageUrl, originalPrompt, revisedPrompt) {
+            const imageMessage = `🎨 **Generated Image**
+
+**Prompt:** ${originalPrompt}
+**Refined Prompt:** ${revisedPrompt}
+
+![Generated Image](${imageUrl})
+
+*Image generated using DALL-E 3*`;
+
+            addMessage('assistant', imageMessage);
+            closeModal('imageModal');
+        }
+
+        function addAnalysisToChat(imageUrl, question, encodedAnalysis) {
+            const analysis = decodeURIComponent(atob(encodedAnalysis));
+            const analysisMessage = `🔍 **Image Analysis**
+
+**Question:** ${question}
+
+![Analyzed Image](${imageUrl})
+
+**Analysis:**
+${analysis}
+
+*Analysis provided by GPT-4 Vision*`;
+
+            addMessage('assistant', analysisMessage);
+            closeModal('imageModal');
         }
 
         function renderMermaidDiagrams() {
@@ -1406,8 +1726,8 @@
 
         function hideStreamingIndicator() {
             isLoading = false;
+            document.getElementById('sendBtn').disabled = false; // Re-enable send button
             document.getElementById('streamingIndicator').style.display = 'none';
-            document.getElementById('sendBtn').disabled = false;
         }
 
         function scrollToBottom() {
@@ -1464,7 +1784,7 @@
             .then(data => {
                 if (data.history) {
                     let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-                    
+
                     if (data.count === 0) {
                         historyText += "No chat history found.";
                     } else {
@@ -1472,13 +1792,13 @@
                             const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
                             const mode = exchange.mode || 'general';
                             const modeInfo = availableModes[mode] || { name: 'General' };
-                            
+
                             historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
                             historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
                             historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
                         });
                     }
-                    
+
                     addMessage('assistant', historyText);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1492,7 +1812,7 @@
 
         function exportConversation(format) {
             const url = `/export_conversation?format=${format}`;
-            
+
             if (format === 'json') {
                 fetch(url)
                 .then(response => response.json())
@@ -1507,7 +1827,7 @@
                     downloadFile(blob, `conversation_${Date.now()}.md`);
                 });
             }
-            
+
             document.getElementById('exportModal').style.display = 'none';
         }
 
@@ -1531,7 +1851,7 @@
                     const sessionInfo = document.getElementById('sessionInfo');
                     const createdDate = new Date(data.created_at).toLocaleDateString();
                     const lastActivity = new Date(data.last_activity).toLocaleString();
-                    
+
                     sessionInfo.innerHTML = `
                         <div>Messages: ${data.message_count}</div>
                         <div>Started: ${createdDate}</div>
@@ -1547,23 +1867,32 @@
         function loadInitialChatHistory() {
             console.log('Loading initial chat history...');
             fetch('/get_history')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 console.log('Loaded chat history:', data);
                 const chatMessages = document.getElementById('chatMessages');
-                
+
                 if (data.history && data.history.length > 0) {
                     // Clear welcome message
                     chatMessages.innerHTML = '';
-                    
+
                     // Display each exchange from history
                     data.history.forEach(exchange => {
-                        const userMessageDiv = addMessage('user', exchange.user);
-                        addMessageActions(userMessageDiv, exchange.user);
+                        // Ensure exchange.user and exchange.assistant are strings
+                        const userMsg = typeof exchange.user === 'string' ? exchange.user : JSON.stringify(exchange.user);
+                        const assistantMsg = typeof exchange.assistant === 'string' ? exchange.assistant : JSON.stringify(exchange.assistant);
                         
-                        const assistantMessageDiv = addMessage('assistant', exchange.assistant);
-                        addMessageActions(assistantMessageDiv, exchange.assistant);
-                        
+                        const userMessageDiv = addMessage('user', userMsg);
+                        addMessageActions(userMessageDiv, userMsg);
+
+                        const assistantMessageDiv = addMessage('assistant', assistantMsg);
+                        addMessageActions(assistantMessageDiv, assistantMsg);
+
                         // Add timestamp info if available
                         if (exchange.timestamp) {
                             const timestampDiv = document.createElement('div');
@@ -1572,52 +1901,48 @@
                             assistantMessageDiv.appendChild(timestampDiv);
                         }
                     });
-                    
+
                     // Render any Mermaid diagrams in the loaded history
                     setTimeout(() => {
                         renderMermaidDiagrams();
                     }, 500);
-                    
+
                     console.log(`Loaded ${data.history.length} chat exchanges from database`);
                 } else {
                     // Show welcome message if no history
-                    chatMessages.innerHTML = `
-                        <div class="message assistant">
-                            <div class="message-content">
-                                <strong>👋 Welcome back to the Enhanced Architecture Assistant!</strong><br><br>
-                                I'm your comprehensive Software Architecture Assistant with advanced capabilities:
-                                <ul style="margin: 10px 0; padding-left: 20px;">
-                                    <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
-                                    <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
-                                    <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
-                                    <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
-                                    <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
-                                    <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
-                                    <li>💾 <strong>Persistent Storage:</strong> Your conversations are automatically saved and will be restored when you return</li>
-                                </ul>
-                                Select your preferred mode and start asking questions!
-                            </div>
-                        </div>
-                    `;
-                    console.log('No previous chat history found - showing welcome message');
+                    showWelcomeMessage();
                 }
-                
+
                 scrollToBottom();
             })
             .catch(error => {
                 console.error('Error loading chat history:', error);
                 // Show error message but keep welcome message as fallback
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = `
-                    <div class="message assistant">
-                        <div class="message-content">
-                            <strong>⚠️ Welcome to the Enhanced Architecture Assistant!</strong><br><br>
-                            <em>Note: There was an issue loading your previous chat history, but new conversations will be saved.</em><br><br>
-                            I'm ready to help with all your software architecture needs!
-                        </div>
-                    </div>
-                `;
+                showWelcomeMessage();
             });
+        }
+
+        function showWelcomeMessage() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = `
+                <div class="message assistant welcome-message">
+                    <div class="message-content">
+                        <strong>👋 Welcome back to the Enhanced Architecture Assistant!</strong><br><br>
+                        I'm your comprehensive Software Architecture Assistant with advanced capabilities:
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
+                            <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
+                            <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
+                            <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
+                            <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
+                            <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
+                            <li>💾 <strong>Persistent Storage:</strong> Your conversations are automatically saved and will be restored when you return</li>
+                        </ul>
+                        Select your preferred mode and start asking questions!
+                    </div>
+                </div>
+            `;
+            console.log('Showing welcome message');
         }
 
         function showSessionInfo() {
@@ -1633,7 +1958,7 @@
 **Total Messages:** ${data.message_count}
 
 Your chat history is automatically saved to a local SQLite database and will persist between browser sessions. This session will remain active until manually cleared or after 30 days of inactivity.`;
-                    
+
                     addMessage('assistant', sessionDetails);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1646,15 +1971,6 @@ Your chat history is automatically saved to a local SQLite database and will per
 
         // Admin authentication and persistence
         let isAdminLoggedIn = false;
-
-        function showAdminLogin() {
-            document.getElementById('adminLoginPanel').style.display = 'block';
-        }
-
-        function hideAdminLogin() {
-            document.getElementById('adminLoginPanel').style.display = 'none';
-            document.getElementById('adminLoginForm').reset();
-        }
 
         function showAdminLogin() {
             document.getElementById('adminLoginPanel').style.display = 'block';
@@ -1678,7 +1994,7 @@ Your chat history is automatically saved to a local SQLite database and will per
 **Total Messages:** ${data.message_count}
 
 Your chat history is automatically saved to a local SQLite database and will persist between browser sessions.`;
-                    
+
                     addMessage('assistant', sessionDetails);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1695,7 +2011,7 @@ Your chat history is automatically saved to a local SQLite database and will per
             .then(data => {
                 if (data.history) {
                     let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-                    
+
                     if (data.count === 0) {
                         historyText += "No chat history found.";
                     } else {
@@ -1703,13 +2019,13 @@ Your chat history is automatically saved to a local SQLite database and will per
                             const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
                             const mode = exchange.mode || 'general';
                             const modeInfo = availableModes[mode] || { name: 'General' };
-                            
+
                             historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
                             historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
                             historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
                         });
                     }
-                    
+
                     addMessage('assistant', historyText);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1737,7 +2053,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 adminRequired('showSystemPromptEditor');
                 return;
             }
-            
+
             // Get current system prompt
             fetch('/get_prompt')
             .then(response => response.json())
@@ -1748,7 +2064,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                     textarea.value = data.prompt;
                     textarea.style.height = '500px'; // Make it larger
                     textarea.style.minHeight = '400px';
-                    
+
                     document.getElementById('currentModeInfo').innerHTML = `
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 18px;">${data.mode_info.icon}</span>
@@ -1758,10 +2074,10 @@ Your chat history is automatically saved to a local SQLite database and will per
                             </div>
                         </div>
                     `;
-                    
+
                     // Show the modal
                     document.getElementById('systemPromptModal').style.display = 'block';
-                    
+
                     // Focus on textarea
                     setTimeout(() => {
                         textarea.focus();
@@ -1777,16 +2093,16 @@ Your chat history is automatically saved to a local SQLite database and will per
 
         function saveSystemPrompt() {
             const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
-            
+
             if (!newPrompt) {
                 alert('System prompt cannot be empty!');
                 return;
             }
-            
+
             // Get current mode
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-            
+
             // Save to backend with persistence
             fetch('/save_system_prompt', {
                 method: 'POST',
@@ -1815,7 +2131,7 @@ Your chat history is automatically saved to a local SQLite database and will per
             if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
                 const activeMode = document.querySelector('.mode-btn.active');
                 const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-                
+
                 fetch('/reset_system_prompt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1827,7 +2143,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                         addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
                                    'The system prompt has been restored to its original default value and saved.');
                         closeModal('systemPromptModal');
-                        
+
                         // Refresh the textarea with the default prompt
                         document.getElementById('systemPromptTextarea').value = data.default_prompt;
                     } else {
@@ -1846,8 +2162,27 @@ Your chat history is automatically saved to a local SQLite database and will per
             addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
         }
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
+        // Admin login form handler - moved inside DOMContentLoaded
+        function initializeAdminLogin() {
+            const adminForm = document.getElementById('adminLoginForm');
+            if (adminForm) {
+                adminForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const username = document.getElementById('adminUsername').value;
+                    const password = document.getElementById('adminPassword').value;
+
+                    // Simple demo authentication (in production, this should be server-side)
+                    if (username === 'admin' && password === 'admin123') {
+                        isAdminLoggedIn = true;
+                        document.getElementById('adminControls').style.display = 'block';
+                        hideAdminLogin();
+                        addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
+                    } else {
+                        alert('Invalid credentials. Try username: admin, password: admin123');
+                    }
+                });
+            }
         }
 
         function adminRequired(functionName) {
@@ -1864,140 +2199,6 @@ Your chat history is automatically saved to a local SQLite database and will per
             }
         }
 
-        function showSystemPromptEditor() {
-            if (!isAdminLoggedIn) {
-                adminRequired('showSystemPromptEditor');
-                return;
-            }
-            
-            // Get current system prompt
-            fetch('/get_prompt')
-            .then(response => response.json())
-            .then(data => {
-                if (data.prompt) {
-                    // Populate the modal with larger textarea
-                    const textarea = document.getElementById('systemPromptTextarea');
-                    textarea.value = data.prompt;
-                    textarea.style.height = '500px'; // Make it larger
-                    textarea.style.minHeight = '400px';
-                    
-                    document.getElementById('currentModeInfo').innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 18px;">${data.mode_info.icon}</span>
-                            <div>
-                                <strong>${data.mode_info.name}</strong>
-                                <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Show the modal
-                    document.getElementById('systemPromptModal').style.display = 'block';
-                    
-                    // Focus on textarea
-                    setTimeout(() => {
-                        textarea.focus();
-                    }, 100);
-                } else {
-                    addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Network error: ${error.message}`);
-            });
-        }
-
-        function saveSystemPrompt() {
-            const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
-            
-            if (!newPrompt) {
-                alert('System prompt cannot be empty!');
-                return;
-            }
-            
-            // Get current mode
-            const activeMode = document.querySelector('.mode-btn.active');
-            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-            
-            // Save to backend with persistence
-            fetch('/save_system_prompt', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    mode: mode,
-                    prompt: newPrompt 
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    addMessage('assistant', '✅ **System prompt updated and saved!**\n\n' + 
-                               'The system prompt for ' + data.mode_info.name + ' mode has been permanently updated and saved to the database.');
-                    closeModal('systemPromptModal');
-                } else {
-                    alert('Error saving system prompt: ' + data.error);
-                }
-            })
-            .catch(error => {
-                alert('Network error saving prompt: ' + error.message);
-            });
-        }
-
-        function resetSystemPrompt() {
-            if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
-                const activeMode = document.querySelector('.mode-btn.active');
-                const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-                
-                fetch('/reset_system_prompt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode: mode })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
-                                   'The system prompt has been restored to its original default value and saved.');
-                        closeModal('systemPromptModal');
-                        
-                        // Refresh the textarea with the default prompt
-                        document.getElementById('systemPromptTextarea').value = data.default_prompt;
-                    } else {
-                        alert('Error resetting prompt: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    alert('Network error: ' + error.message);
-                });
-            }
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        function logoutAdmin() {
-            isAdminLoggedIn = false;
-            document.getElementById('adminControls').style.display = 'none';
-            addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
-        }
-
-        // Template loading function
-        function loadTemplate(templateType) {
-            fetch(`/templates/${templateType}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.content) {
-                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
-                    document.getElementById('messageInput').style.height = 'auto';
-                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
-                }
-            })
-            .catch(error => {
-                addMessage('assistant', `❌ Error loading template: ${error.message}`);
-            });
-        }
-
         // Voice Input Implementation
         function initializeVoiceInput() {
             if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -2006,18 +2207,18 @@ Your chat history is automatically saved to a local SQLite database and will per
                 recognition.continuous = false;
                 recognition.interimResults = false;
                 recognition.lang = 'en-US';
-                
+
                 recognition.onresult = function(event) {
                     const transcript = event.results[0][0].transcript;
                     document.getElementById('messageInput').value = transcript;
                     stopRecording();
                 };
-                
+
                 recognition.onerror = function(event) {
                     console.error('Speech recognition error:', event.error);
                     stopRecording();
                 };
-                
+
                 recognition.onend = function() {
                     stopRecording();
                 };
@@ -2032,7 +2233,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 alert('Voice input not supported in this browser');
                 return;
             }
-            
+
             if (isRecording) {
                 recognition.stop();
             } else {
@@ -2061,13 +2262,13 @@ Your chat history is automatically saved to a local SQLite database and will per
         function toggleTheme() {
             currentTheme = currentTheme === 'light' ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', currentTheme);
-            
+
             const themeBtn = document.getElementById('themeToggle');
             themeBtn.innerHTML = currentTheme === 'light' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
-            
+
             // Save preference
             localStorage.setItem('theme', currentTheme);
-            
+
             addMessage('assistant', `🎨 **Theme switched to ${currentTheme} mode!**\n\nYour preference has been saved and will be remembered for future sessions.`);
         }
 
@@ -2086,19 +2287,19 @@ Your chat history is automatically saved to a local SQLite database and will per
                     e.preventDefault();
                     sendMessage();
                 }
-                
+
                 // Ctrl+K or Cmd+K to clear
                 if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                     e.preventDefault();
                     clearHistory();
                 }
-                
+
                 // Ctrl+/ or Cmd+/ for help
                 if ((e.ctrlKey || e.metaKey) && e.key === '/') {
                     e.preventDefault();
                     showKeyboardShortcuts();
                 }
-                
+
                 // Escape to stop voice recording
                 if (e.key === 'Escape' && isRecording) {
                     recognition.stop();
@@ -2120,7 +2321,7 @@ Your chat history is automatically saved to a local SQLite database and will per
 • Switch between AI models for different capabilities
 • Toggle dark mode for comfortable viewing
 • Upload files for enhanced context analysis`;
-            
+
             addMessage('assistant', shortcuts);
         }
 
@@ -2131,7 +2332,7 @@ Your chat history is automatically saved to a local SQLite database and will per
             if (savedTheme === 'dark') {
                 toggleTheme();
             }
-            
+
             // Load model preference
             const savedModel = localStorage.getItem('selectedModel') || 'gpt-4';
             document.getElementById('modelSelector').value = savedModel;
@@ -2146,7 +2347,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 session_id: getCurrentSessionId(),
                 details: details
             };
-            
+
             // Log to console for debugging (in production, send to analytics service)
             console.log('User Action:', analytics);
         }
@@ -2154,29 +2355,6 @@ Your chat history is automatically saved to a local SQLite database and will per
         function getCurrentSessionId() {
             // Extract session ID from current context
             return document.cookie.includes('session') ? 'session-id' : 'unknown';
-        }
-
-        // Admin login form handler - moved inside DOMContentLoaded
-        function initializeAdminLogin() {
-            const adminForm = document.getElementById('adminLoginForm');
-            if (adminForm) {
-                adminForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const username = document.getElementById('adminUsername').value;
-                    const password = document.getElementById('adminPassword').value;
-                    
-                    // Simple demo authentication (in production, this should be server-side)
-                    if (username === 'admin' && password === 'admin123') {
-                        isAdminLoggedIn = true;
-                        document.getElementById('adminControls').style.display = 'block';
-                        hideAdminLogin();
-                        addMessage('assistant', '🔓 **Administrator logged in successfully!**\n\nYou now have access to system prompts and administrative features. The admin controls panel is now visible in the sidebar.');
-                    } else {
-                        alert('Invalid credentials. Try username: admin, password: admin123');
-                    }
-                });
-            }
         }
     </script>
 </body>
