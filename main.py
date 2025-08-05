@@ -102,48 +102,33 @@ def get_db_connection():
     finally:
         conn.close()
 
-def get_session_id():
-    """Get or create a session ID with proper context handling"""
-    try:
-        # Check if we're in a request context
-        from flask import has_request_context
-        if not has_request_context():
-            # We're outside a request context, return a temporary ID
-            return f"temp_{str(uuid.uuid4())}"
-        
-        if 'user_session_id' not in session:
-            new_session_id = str(uuid.uuid4())
-            session['user_session_id'] = new_session_id
-            session.modified = True
+def create_session_id():
+    """Create a new session ID without Flask session dependency"""
+    return str(uuid.uuid4())
 
-            # Create session in database with better error handling
-            try:
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
-                        (new_session_id,)
-                    )
-                    conn.commit()
-                    print(f"✅ Created new session: {new_session_id[:8]}...")
-            except Exception as e:
-                print(f"❌ Error creating session in database: {e}")
-                # Continue with session even if database insert fails
-                pass
+def get_or_create_session_id():
+    """Get session ID from Flask session or create new one"""
+    if 'user_session_id' not in session:
+        session['user_session_id'] = create_session_id()
+        session.modified = True
 
-        return session['user_session_id']
-    except Exception as e:
-        # Fallback for any session-related errors
-        print(f"⚠️ Session error, using temporary ID: {e}")
-        return f"temp_{str(uuid.uuid4())}"
+        # Create session in database
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
+                    (session['user_session_id'],)
+                )
+                conn.commit()
+                print(f"✅ Created new session: {session['user_session_id'][:8]}...")
+        except Exception as e:
+            print(f"❌ Error creating session in database: {e}")
+
+    return session['user_session_id']
 
 def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
     """Save a chat exchange to the database"""
-    # Don't save temporary sessions
-    if session_id.startswith('temp_'):
-        print(f"⚠️ Skipping save for temporary session: {session_id[:12]}")
-        return
-        
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -170,16 +155,9 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
             print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
         print(f"❌ Error saving chat exchange: {e}")
-        # Don't re-raise to avoid breaking the chat flow
-        pass
 
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
-    # Don't load history for temporary sessions
-    if session_id.startswith('temp_'):
-        print(f"⚠️ Skipping load for temporary session: {session_id[:12]}")
-        return []
-        
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -229,29 +207,24 @@ def initialize_vector_db():
         except Exception as e:
             print(f"⚠️  Could not initialize vector database: {e}")
 
-# Initialize database and vector database on startup
-def initialize_app():
-    """Initialize the application with proper context"""
-    try:
-        init_database()
-        print("✅ Database initialized successfully")
+# Initialize database on startup - NO Flask context needed
+try:
+    init_database()
+    print("✅ Database initialized successfully")
 
-        # Test database connection
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
-            session_count = cursor.fetchone()['count']
-            cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
-            exchange_count = cursor.fetchone()['count']
-            print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
+    # Test database connection
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
+        session_count = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
+        exchange_count = cursor.fetchone()['count']
+        print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
 
-        # Initialize vector database for enhanced AI capabilities after database setup
-        initialize_vector_db()
-    except Exception as e:
-        print(f"❌ Database initialization error: {e}")
-
-# Initialize the app - no Flask context needed for database setup
-initialize_app()
+    # Initialize vector database
+    initialize_vector_db()
+except Exception as e:
+    print(f"❌ Database initialization error: {e}")
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -565,21 +538,15 @@ def summarize_context(chat_history):
 @app.route('/')
 def index():
     try:
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
 
-        # Only load chat history if we have a real session (not temp)
-        if not session_id.startswith('temp_'):
-            # Load persistent chat history and store in session
-            try:
-                persistent_history = load_chat_history(session_id)
-                session['chat_history'] = persistent_history
-                print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
-            except Exception as e:
-                print(f"Error loading chat history: {e}")
-                persistent_history = []
-                session['chat_history'] = []
-        else:
-            # Temporary session - start fresh
+        # Load persistent chat history and store in session
+        try:
+            persistent_history = load_chat_history(session_id)
+            session['chat_history'] = persistent_history
+            print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
+        except Exception as e:
+            print(f"Error loading chat history: {e}")
             persistent_history = []
             session['chat_history'] = []
 
@@ -685,7 +652,7 @@ def chat():
             }
 
         # Save to database and session
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
         save_chat_exchange(session_id, user_message, assistant_response, mode)
 
         session['chat_history'].append({
@@ -870,7 +837,7 @@ def set_mode():
 @app.route('/export_conversation', methods=['GET'])
 def export_conversation():
     try:
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
         chat_history = load_chat_history(session_id, limit=1000)  # Load more for export
         export_format = request.args.get('format', 'json')
 
@@ -909,7 +876,7 @@ def export_conversation():
 @app.route('/clear_history', methods=['POST'])
 def clear_history():
     try:
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
         clear_session_history(session_id)
 
         session['chat_history'] = []
@@ -948,7 +915,7 @@ def get_prompt():
 @app.route('/get_history', methods=['GET'])
 def get_history():
     try:
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
 
         # Load fresh history from database
         chat_history = load_chat_history(session_id, limit=100)
@@ -993,190 +960,6 @@ def get_models():
     """Get available AI models"""
     return jsonify({'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL})
 
-@app.route('/get_analytics', methods=['GET'])
-def get_analytics():
-    """Get conversation analytics and insights"""
-    try:
-        session_id = get_session_id()
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            # Basic conversation stats
-            cursor.execute('''
-                SELECT 
-                    COUNT(*) as total_exchanges,
-                    COUNT(DISTINCT mode) as modes_used,
-                    AVG(LENGTH(user_message)) as avg_user_length,
-                    AVG(LENGTH(assistant_response)) as avg_response_length,
-                    MIN(timestamp) as first_exchange,
-                    MAX(timestamp) as last_exchange
-                FROM chat_exchanges 
-                WHERE session_id = ?
-            ''', (session_id,))
-
-            stats = dict(cursor.fetchone())
-
-            # Mode usage statistics
-            cursor.execute('''
-                SELECT mode, COUNT(*) as count
-                FROM chat_exchanges 
-                WHERE session_id = ?
-                GROUP BY mode
-                ORDER BY count DESC
-            ''', (session_id,))
-
-            mode_stats = [dict(row) for row in cursor.fetchall()]
-
-            # Recent activity pattern
-            cursor.execute('''
-                SELECT 
-                    DATE(timestamp) as date,
-                    COUNT(*) as exchanges
-                FROM chat_exchanges 
-                WHERE session_id = ? AND datetime(timestamp) >= datetime('now', '-30 days')
-                GROUP BY DATE(timestamp)
-                ORDER BY date DESC
-                LIMIT 30
-            ''', (session_id,))
-
-            activity_pattern = [dict(row) for row in cursor.fetchall()]
-
-            return jsonify({
-                'success': True,
-                'stats': stats,
-                'mode_usage': mode_stats,
-                'activity_pattern': activity_pattern,
-                'insights': generate_insights(stats, mode_stats)
-            })
-
-    except Exception as e:
-        return jsonify({'error': f'Analytics error: {str(e)}'}), 500
-
-def generate_insights(stats, mode_stats):
-    """Generate intelligent insights from conversation data"""
-    insights = []
-
-    if stats['total_exchanges'] > 0:
-        # Usage insights
-        if stats['total_exchanges'] > 10:
-            insights.append("🎯 You're an active user! Your engagement shows deep architectural thinking.")
-
-        # Mode preferences
-        if mode_stats:
-            top_mode = mode_stats[0]['mode']
-            mode_name = ASSISTANT_MODES.get(top_mode, {}).get('name', top_mode)
-            insights.append(f"📊 Your favorite mode is {mode_name}, showing focus on this area.")
-
-        # Communication style
-        avg_user_length = stats.get('avg_user_length', 0)
-        if avg_user_length > 200:
-            insights.append("📝 You provide detailed context, which leads to better AI responses.")
-        elif avg_user_length < 50:
-            insights.append("💡 Try providing more context in your questions for enhanced responses.")
-
-        # Response complexity
-        avg_response_length = stats.get('avg_response_length', 0)
-        if avg_response_length > 1000:
-            insights.append("🔍 You're getting comprehensive, detailed responses from the AI.")
-
-    return insights
-
-@app.route('/get_session_info', methods=['GET'])
-def get_session_info():
-    """Get information about the current session"""
-    try:
-        session_id = get_session_id()
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT created_at, last_activity,
-                       (SELECT COUNT(*) FROM chat_exchanges WHERE session_id = ?) as message_count
-                FROM chat_sessions 
-                WHERE session_id = ?
-            ''', (session_id, session_id))
-
-            row = cursor.fetchone()
-            if row:
-                return jsonify({
-                    'session_id': session_id,
-                    'created_at': row['created_at'],
-                    'last_activity': row['last_activity'],
-                    'message_count': row['message_count']
-                })
-            else:
-                return jsonify({'error': 'Session not found'}), 404
-
-    except Exception as e:
-        return jsonify({'error': f'Error retrieving session info: {str(e)}'}), 500
-
-@app.route('/test_db', methods=['GET'])
-def test_db():
-    """Test database connectivity and show recent entries"""
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            # Test basic connectivity
-            cursor.execute('SELECT COUNT(*) as session_count FROM chat_sessions')
-            session_count = cursor.fetchone()['session_count']
-
-            cursor.execute('SELECT COUNT(*) as exchange_count FROM chat_exchanges')
-            exchange_count = cursor.fetchone()['exchange_count']
-
-            # Get recent exchanges
-            cursor.execute('''
-                SELECT session_id, user_message, assistant_response, timestamp, mode
-                FROM chat_exchanges 
-                ORDER BY timestamp DESC 
-                LIMIT 5
-            ''')
-            recent_exchanges = [dict(row) for row in cursor.fetchall()]
-
-            return jsonify({
-                'success': True,
-                'database_path': DATABASE_PATH,
-                'session_count': session_count,
-                'exchange_count': exchange_count,
-                'recent_exchanges': recent_exchanges
-            })
-
-    except Exception as e:
-        return jsonify({'error': f'Database test error: {str(e)}'}), 500
-
-@app.route('/delete_old_sessions', methods=['POST'])
-def delete_old_sessions():
-    """Delete sessions older than specified days (default 30 days)"""
-    try:
-        days = request.json.get('days', 30) if request.is_json else 30
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            # Delete old chat exchanges first
-            cursor.execute('''
-                DELETE FROM chat_exchanges 
-                WHERE session_id IN (
-                    SELECT session_id FROM chat_sessions 
-                    WHERE last_activity < datetime('now', '-{} days')
-                )
-            '''.format(days))
-
-            # Delete old sessions
-            cursor.execute('''
-                DELETE FROM chat_sessions 
-                WHERE last_activity < datetime('now', '-{} days')
-            '''.format(days))
-
-            deleted_count = cursor.rowcount
-            conn.commit()
-
-        return jsonify({'success': True, 'deleted_sessions': deleted_count})
-
-    except Exception as e:
-        return jsonify({'error': f'Error deleting old sessions: {str(e)}'}), 500
-
 @app.route('/save_chat', methods=['POST'])
 def save_chat():
     """Save chat exchange to database and session after streaming"""
@@ -1190,7 +973,7 @@ def save_chat():
             return jsonify({'error': 'Missing message data'}), 400
 
         # Save to database
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
         save_chat_exchange(session_id, user_message, assistant_response, mode)
 
         # Also update session for immediate use
@@ -1238,7 +1021,7 @@ def generate_image():
         revised_prompt = response.data[0].revised_prompt
 
         # Save image info to session for context
-        session_id = get_session_id()
+        session_id = get_or_create_session_id()
         if 'generated_images' not in session:
             session['generated_images'] = []
 
@@ -1377,115 +1160,6 @@ def reset_system_prompt():
     except Exception as e:
         print(f"❌ Error resetting system prompt: {e}")
         return jsonify({'error': f'Error resetting system prompt: {str(e)}'}), 500
-
-@app.route('/templates/<template_type>')
-def get_template(template_type):
-    """Provide quick templates for common tasks"""
-    templates = {
-        'adr': {
-            'name': 'Architecture Decision Record',
-            'content': '''# ADR-{number}: {Title}
-
-## Status
-Proposed | Accepted | Deprecated | Superseded
-
-## Context
-What is the issue that we're seeing that is motivating this decision or change?
-
-## Decision
-What is the change that we're proposing and/or doing?
-
-## Consequences
-What becomes easier or more difficult to do because of this change?
-
-## Alternatives Considered
-What other options did we consider?
-
-## References
-Links to relevant documentation, discussions, or other ADRs.'''
-        },
-        'hld': {
-            'name': 'High-Level Design Template',
-            'content': '''# High-Level Design: {System Name}
-
-## Overview
-Brief description of the system and its purpose.
-
-## Goals and Requirements
-- Functional requirements
-- Non-functional requirements
-- Constraints
-
-## Architecture Overview
-
-```mermaid
-graph TB
-    A[Client] --> B[API Gateway]
-    B --> C[Service Layer]
-    C --> D[Data Layer]
-```
-
-## System Components
-### Component 1
-- Purpose
-- Responsibilities
-- Interfaces
-
-## Data Flow
-Describe how data flows through the system.
-
-## Security Considerations
-Authentication, authorization, data protection.
-
-## Scalability and Performance
-Expected load, scaling strategies.
-
-## Monitoring and Observability
-Logging, metrics, alerting strategies.'''
-        },
-        'code_review': {
-            'name': 'Code Review Checklist',
-            'content': '''# Code Review Checklist
-
-## Functionality
-- [ ] Code does what it's supposed to do
-- [ ] Edge cases are handled
-- [ ] Error handling is appropriate
-
-## Code Quality
-- [ ] Code follows established conventions
-- [ ] Variables and functions are well-named
-- [ ] Code is DRY (Don't Repeat Yourself)
-- [ ] Functions are small and focused
-
-## Security
-- [ ] No hardcoded secrets or credentials
-- [ ] Input validation is implemented
-- [ ] SQL injection prevention
-- [ ] XSS prevention (for web apps)
-
-## Performance
-- [ ] No obvious performance bottlenecks
-- [ ] Database queries are optimized
-- [ ] Appropriate data structures used
-
-## Testing
-- [ ] Unit tests cover new functionality
-- [ ] Tests are meaningful and not just for coverage
-- [ ] Integration tests where appropriate
-
-## Documentation
-- [ ] Code is self-documenting
-- [ ] Complex logic is commented
-- [ ] API documentation updated if needed'''
-        }
-    }
-
-    template = templates.get(template_type)
-    if template:
-        return jsonify(template)
-    else:
-        return jsonify({'error': 'Template not found'}), 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
