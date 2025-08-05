@@ -103,8 +103,14 @@ def get_db_connection():
         conn.close()
 
 def get_session_id():
-    """Get or create a session ID"""
+    """Get or create a session ID with proper context handling"""
     try:
+        # Check if we're in a request context
+        from flask import has_request_context
+        if not has_request_context():
+            # We're outside a request context, return a temporary ID
+            return f"temp_{str(uuid.uuid4())}"
+        
         if 'user_session_id' not in session:
             new_session_id = str(uuid.uuid4())
             session['user_session_id'] = new_session_id
@@ -126,14 +132,18 @@ def get_session_id():
                 pass
 
         return session['user_session_id']
-    except RuntimeError as e:
-        if "Working outside of request context" in str(e):
-            # Return a temporary session ID when outside request context
-            return str(uuid.uuid4())
-        raise e
+    except Exception as e:
+        # Fallback for any session-related errors
+        print(f"⚠️ Session error, using temporary ID: {e}")
+        return f"temp_{str(uuid.uuid4())}"
 
 def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
     """Save a chat exchange to the database"""
+    # Don't save temporary sessions
+    if session_id.startswith('temp_'):
+        print(f"⚠️ Skipping save for temporary session: {session_id[:12]}")
+        return
+        
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -160,10 +170,16 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
             print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
         print(f"❌ Error saving chat exchange: {e}")
-        raise e
+        # Don't re-raise to avoid breaking the chat flow
+        pass
 
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
+    # Don't load history for temporary sessions
+    if session_id.startswith('temp_'):
+        print(f"⚠️ Skipping load for temporary session: {session_id[:12]}")
+        return []
+        
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -234,10 +250,8 @@ def initialize_app():
     except Exception as e:
         print(f"❌ Database initialization error: {e}")
 
-# Initialize with app context
-with app.app_context():
-    initialize_app()
-
+# Initialize the app - no Flask context needed for database setup
+initialize_app()
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -550,23 +564,34 @@ def summarize_context(chat_history):
 
 @app.route('/')
 def index():
-    session_id = get_session_id()
-
-    # Load persistent chat history and store in session
     try:
-        persistent_history = load_chat_history(session_id)
-        session['chat_history'] = persistent_history
-        print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
+        session_id = get_session_id()
+
+        # Only load chat history if we have a real session (not temp)
+        if not session_id.startswith('temp_'):
+            # Load persistent chat history and store in session
+            try:
+                persistent_history = load_chat_history(session_id)
+                session['chat_history'] = persistent_history
+                print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
+            except Exception as e:
+                print(f"Error loading chat history: {e}")
+                persistent_history = []
+                session['chat_history'] = []
+        else:
+            # Temporary session - start fresh
+            persistent_history = []
+            session['chat_history'] = []
+
+        if 'assistant_mode' not in session:
+            session['assistant_mode'] = 'general'
+        session.modified = True
+
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
     except Exception as e:
-        print(f"Error loading chat history: {e}")
-        persistent_history = []
-        session['chat_history'] = []
-
-    if 'assistant_mode' not in session:
-        session['assistant_mode'] = 'general'
-    session.modified = True
-
-    return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
+        print(f"Error in index route: {e}")
+        # Fallback rendering with empty data
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
 
 @app.route('/chat', methods=['POST'])
 def chat():
