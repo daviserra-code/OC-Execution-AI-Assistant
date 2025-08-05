@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, Response, stream_template
+from flask import Flask, render_template, request, jsonify, session, Response, stream_template, g
 import openai
 import os
 import sys
@@ -92,15 +92,24 @@ def init_database():
         ''')
         conn.commit()
 
-@contextmanager
-def get_db_connection():
-    """Context manager for database connections"""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
+def get_db():
+    """Get database connection from Flask g object"""
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+@app.before_request
+def before_request():
+    """Create database connection before each request"""
+    pass  # Connection will be created on first access via get_db()
+
+@app.teardown_request
+def teardown_request(error):
+    """Close database connection after each request"""
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 def create_session_id():
     """Create a new session ID without Flask session dependency"""
@@ -114,14 +123,14 @@ def get_or_create_session_id():
 
         # Create session in database
         try:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
-                    (session['user_session_id'],)
-                )
-                conn.commit()
-                print(f"✅ Created new session: {session['user_session_id'][:8]}...")
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute(
+                'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
+                (session['user_session_id'],)
+            )
+            db.commit()
+            print(f"✅ Created new session: {session['user_session_id'][:8]}...")
         except Exception as e:
             print(f"❌ Error creating session in database: {e}")
 
@@ -130,67 +139,67 @@ def get_or_create_session_id():
 def save_chat_exchange(session_id, user_message, assistant_response, mode='general'):
     """Save a chat exchange to the database"""
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        db = get_db()
+        cursor = db.cursor()
 
-            # Ensure session exists first
-            cursor.execute('''
-                INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)
-            ''', (session_id,))
+        # Ensure session exists first
+        cursor.execute('''
+            INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)
+        ''', (session_id,))
 
-            # Insert the chat exchange
-            cursor.execute('''
-                INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
-                VALUES (?, ?, ?, ?)
-            ''', (session_id, user_message, assistant_response, mode))
+        # Insert the chat exchange
+        cursor.execute('''
+            INSERT INTO chat_exchanges (session_id, user_message, assistant_response, mode)
+            VALUES (?, ?, ?, ?)
+        ''', (session_id, user_message, assistant_response, mode))
 
-            # Update session last activity
-            cursor.execute('''
-                UPDATE chat_sessions 
-                SET last_activity = CURRENT_TIMESTAMP 
-                WHERE session_id = ?
-            ''', (session_id,))
+        # Update session last activity
+        cursor.execute('''
+            UPDATE chat_sessions 
+            SET last_activity = CURRENT_TIMESTAMP 
+            WHERE session_id = ?
+        ''', (session_id,))
 
-            conn.commit()
-            print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
+        db.commit()
+        print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
         print(f"❌ Error saving chat exchange: {e}")
 
 def load_chat_history(session_id, limit=50):
     """Load chat history from database"""
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT user_message, assistant_response, mode, timestamp
-                FROM chat_exchanges
-                WHERE session_id = ?
-                ORDER BY timestamp ASC
-                LIMIT ?
-            ''', (session_id, limit))
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('''
+            SELECT user_message, assistant_response, mode, timestamp
+            FROM chat_exchanges
+            WHERE session_id = ?
+            ORDER BY timestamp ASC
+            LIMIT ?
+        ''', (session_id, limit))
 
-            rows = cursor.fetchall()
-            history = [
-                {
-                    'user': row['user_message'],
-                    'assistant': row['assistant_response'],
-                    'mode': row['mode'] or 'general',
-                    'timestamp': row['timestamp']
-                }
-                for row in rows
-            ]
-            print(f"Successfully loaded {len(history)} exchanges from database")
-            return history
+        rows = cursor.fetchall()
+        history = [
+            {
+                'user': row['user_message'],
+                'assistant': row['assistant_response'],
+                'mode': row['mode'] or 'general',
+                'timestamp': row['timestamp']
+            }
+            for row in rows
+        ]
+        print(f"Successfully loaded {len(history)} exchanges from database")
+        return history
     except Exception as e:
         print(f"Error loading chat history from database: {e}")
         return []
 
 def clear_session_history(session_id):
     """Clear chat history for a specific session"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
-        conn.commit()
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
+    db.commit()
 
 # Initialize vector database for enhanced AI capabilities
 vector_db = None
@@ -213,13 +222,17 @@ try:
     print("✅ Database initialized successfully")
 
     # Test database connection
-    with get_db_connection() as conn:
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
         session_count = cursor.fetchone()['count']
         cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
         exchange_count = cursor.fetchone()['count']
         print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
+    finally:
+        conn.close()
 
     # Initialize vector database
     initialize_vector_db()
@@ -580,11 +593,11 @@ def chat():
         mode = session.get('assistant_mode', 'general')
 
         # Get custom prompt from database if available
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
-            row = cursor.fetchone()
-            current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+        row = cursor.fetchone()
+        current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
 
         # Handle regeneration
         if regenerate and session['chat_history']:
@@ -692,11 +705,11 @@ def chat_stream():
         def generate():
             try:
                 # Get custom prompt from database if available
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
-                    row = cursor.fetchone()
-                    current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
+                db = get_db()
+                cursor = db.cursor()
+                cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+                row = cursor.fetchone()
+                current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
 
                 # Build messages
                 messages = [{"role": "system", "content": current_prompt}]
@@ -893,16 +906,16 @@ def get_prompt():
         mode = session.get('assistant_mode', 'general')
 
         # Check for custom prompt in database first
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
-            row = cursor.fetchone()
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT custom_prompt FROM system_prompts WHERE mode = ?', (mode,))
+        row = cursor.fetchone()
 
-            if row:
-                prompt = row['custom_prompt']
-            else:
-                # Use default prompt
-                prompt = ASSISTANT_MODES[mode]['prompt']
+        if row:
+            prompt = row['custom_prompt']
+        else:
+            # Use default prompt
+            prompt = ASSISTANT_MODES[mode]['prompt']
 
         return jsonify({
             'prompt': prompt,
@@ -1108,13 +1121,13 @@ def save_system_prompt():
             return jsonify({'error': 'Invalid mode'}), 400
 
         # Save to database with UPSERT
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO system_prompts (mode, custom_prompt, modified_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-            ''', (mode, custom_prompt))
-            conn.commit()
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO system_prompts (mode, custom_prompt, modified_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (mode, custom_prompt))
+        db.commit()
 
         print(f"✅ System prompt saved for mode: {mode}")
 
@@ -1140,10 +1153,10 @@ def reset_system_prompt():
             return jsonify({'error': 'Invalid mode'}), 400
 
         # Remove custom prompt from database
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM system_prompts WHERE mode = ?', (mode,))
-            conn.commit()
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('DELETE FROM system_prompts WHERE mode = ?', (mode,))
+        db.commit()
 
         default_prompt = ASSISTANT_MODES[mode]['prompt']
 
