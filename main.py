@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, Response, stream_template, g
+from flask import Flask, render_template, request, jsonify, session, Response, stream_template, g, has_app_context
 import openai
 import os
 import sys
@@ -93,11 +93,17 @@ def init_database():
         conn.commit()
 
 def get_db():
-    """Get database connection from Flask g object"""
-    if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE_PATH)
-        g.db.row_factory = sqlite3.Row
-    return g.db
+    """Get database connection from Flask g object or create direct connection"""
+    if has_app_context():
+        if 'db' not in g:
+            g.db = sqlite3.connect(DATABASE_PATH)
+            g.db.row_factory = sqlite3.Row
+        return g.db
+    else:
+        # Create direct connection when outside app context
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 @app.before_request
 def before_request():
@@ -107,9 +113,10 @@ def before_request():
 @app.teardown_request
 def teardown_request(error):
     """Close database connection after each request"""
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+    if has_app_context():
+        db = g.pop('db', None)
+        if db is not None:
+            db.close()
 
 def create_session_id():
     """Create a new session ID without Flask session dependency"""
@@ -117,6 +124,10 @@ def create_session_id():
 
 def get_or_create_session_id():
     """Get session ID from Flask session or create new one"""
+    if not has_app_context():
+        # Return a temporary session ID when outside request context
+        return create_session_id()
+        
     if 'user_session_id' not in session:
         session['user_session_id'] = create_session_id()
         session.modified = True
@@ -129,7 +140,10 @@ def get_or_create_session_id():
                 'INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)',
                 (session['user_session_id'],)
             )
-            db.commit()
+            if has_app_context():
+                db.commit()
+            else:
+                db.close()
             print(f"✅ Created new session: {session['user_session_id'][:8]}...")
         except Exception as e:
             print(f"❌ Error creating session in database: {e}")
@@ -161,6 +175,11 @@ def save_chat_exchange(session_id, user_message, assistant_response, mode='gener
         ''', (session_id,))
 
         db.commit()
+        
+        # Close connection if we're outside app context
+        if not has_app_context():
+            db.close()
+            
         print(f"✅ Saved chat exchange for session {session_id[:8]} (mode: {mode})")
     except Exception as e:
         print(f"❌ Error saving chat exchange: {e}")
@@ -188,6 +207,11 @@ def load_chat_history(session_id, limit=50):
             }
             for row in rows
         ]
+        
+        # Close connection if we're outside app context
+        if not has_app_context():
+            db.close()
+            
         print(f"Successfully loaded {len(history)} exchanges from database")
         return history
     except Exception as e:
@@ -200,6 +224,10 @@ def clear_session_history(session_id):
     cursor = db.cursor()
     cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
     db.commit()
+    
+    # Close connection if we're outside app context
+    if not has_app_context():
+        db.close()
 
 # Initialize vector database for enhanced AI capabilities
 vector_db = None
@@ -917,6 +945,10 @@ def get_prompt():
             # Use default prompt
             prompt = ASSISTANT_MODES[mode]['prompt']
 
+        # Close connection if we're outside app context (shouldn't happen in route but safety)
+        if not has_app_context():
+            db.close()
+
         return jsonify({
             'prompt': prompt,
             'mode': mode,
@@ -1129,6 +1161,10 @@ def save_system_prompt():
         ''', (mode, custom_prompt))
         db.commit()
 
+        # Close connection if we're outside app context (shouldn't happen in route but safety)
+        if not has_app_context():
+            db.close()
+
         print(f"✅ System prompt saved for mode: {mode}")
 
         return jsonify({
@@ -1157,6 +1193,10 @@ def reset_system_prompt():
         cursor = db.cursor()
         cursor.execute('DELETE FROM system_prompts WHERE mode = ?', (mode,))
         db.commit()
+
+        # Close connection if we're outside app context (shouldn't happen in route but safety)
+        if not has_app_context():
+            db.close()
 
         default_prompt = ASSISTANT_MODES[mode]['prompt']
 
