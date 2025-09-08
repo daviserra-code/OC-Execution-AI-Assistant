@@ -147,6 +147,25 @@ section.container {
   align-items: center;
 }
 
+/* Landing page specific styles */
+#welcomeLanding {
+  background: var(--bg-0) !important;
+  color: var(--text-0) !important;
+}
+
+.welcome-card {
+  border: 2px solid var(--acc-1) !important;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.1)) !important;
+}
+
+.welcome-card h1 {
+  color: var(--text-0) !important;
+}
+
+.welcome-card p {
+  color: var(--text-1) !important;
+}
+
 /* 9) Responsive */
 @media (max-width: 768px) {
   .container {
