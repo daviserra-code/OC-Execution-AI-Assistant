@@ -1,0 +1,317 @@
+
+/* teyra.theme.css */
+
+/* 1) Tokens */
+:root {
+  --bg-0: #0B0F14;      /* deep space */
+  --bg-1: #0F1621;      /* elevated surface */
+  --panel: #121B27;     /* cards/nav */
+  --line: #223043;      /* subtle borders */
+
+  --text-0: #E6ECF8;    /* primary text */
+  --text-1: #B4C2D7;    /* secondary text */
+  --muted: #91A3BB;     /* dimmed */
+
+  --acc-1: #22D3EE;     /* cyan */
+  --acc-2: #6EE7FF;     /* ice cyan */
+  --acc-3: #A78BFA;     /* violet */
+  --acc-4: #F472B6;     /* pink */
+
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger:  #EF4444;
+
+  --radius: 14px;
+  --shadow-1: 0 10px 30px rgba(0,0,0,0.35);
+  --shadow-2: 0 2px 10px rgba(0,0,0,0.35);
+
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --speed-1: 140ms;
+  --speed-2: 240ms;
+}
+
+/* 2) Base Override */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 800px at 10% 0%, rgba(167,139,250,0.06) 0%, transparent 60%),
+              radial-gradient(900px 700px at 90% 10%, rgba(34,211,238,0.06) 0%, transparent 60%),
+              var(--bg-0) !important;
+  color: var(--text-0) !important;
+  font-family: var(--font-ui) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Container Override */
+.container {
+  background: transparent !important;
+  box-shadow: 0 0 30px rgba(34,211,238,0.15) !important;
+}
+
+/* Sidebar Override */
+.sidebar {
+  background: rgba(18,27,39,0.85) !important;
+  backdrop-filter: saturate(1.1) blur(15px) !important;
+  border-right: 1px solid rgba(110,231,255,0.15) !important;
+  color: var(--text-0) !important;
+}
+
+.logo {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+
+/* Mode selector override */
+.mode-selector {
+  background: var(--panel) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.mode-selector h3, .upload-section h3, .templates-section h3 {
+  color: var(--text-0) !important;
+}
+
+.mode-btn {
+  background: var(--bg-1) !important;
+  border: 1px solid rgba(167,139,250,0.25) !important;
+  color: var(--text-1) !important;
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+  border-color: var(--acc-2) !important;
+}
+
+.mode-btn:hover:not(.active) {
+  border-color: var(--acc-1) !important;
+  background: var(--bg-0) !important;
+}
+
+/* Upload section override */
+.upload-section {
+  background: var(--panel) !important;
+  border: 2px dashed rgba(110,231,255,0.25) !important;
+}
+
+.upload-section:hover {
+  border-color: var(--acc-1) !important;
+  background: var(--bg-1) !important;
+}
+
+.file-input-label {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+}
+
+.file-item {
+  background: var(--bg-1) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--text-0) !important;
+}
+
+.file-item .file-name {
+  color: var(--text-0) !important;
+}
+
+.file-item .file-content {
+  color: var(--text-1) !important;
+}
+
+/* Templates section override */
+.templates-section {
+  background: var(--panel) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.template-btn {
+  background: var(--bg-1) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--text-0) !important;
+}
+
+.template-btn:hover {
+  background: var(--bg-0) !important;
+  border-color: var(--acc-1) !important;
+}
+
+/* Control buttons override */
+.control-btn.primary {
+  background: linear-gradient(135deg, var(--success), var(--acc-1)) !important;
+  color: #041015 !important;
+}
+
+.control-btn.secondary {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+}
+
+.control-btn.danger {
+  background: linear-gradient(135deg, var(--danger), var(--acc-4)) !important;
+  color: #0A0F16 !important;
+}
+
+.control-btn.warning {
+  background: linear-gradient(135deg, var(--warning), var(--acc-4)) !important;
+  color: #0A0F16 !important;
+}
+
+/* Chat container override */
+.chat-container {
+  background: rgba(18,27,39,0.75) !important;
+  backdrop-filter: saturate(1.1) blur(15px) !important;
+}
+
+.chat-header {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+}
+
+.chat-messages {
+  background: var(--bg-0) !important;
+}
+
+/* Message styling override */
+.message.user .message-content {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+  border-bottom-right-radius: 5px !important;
+}
+
+.message.assistant .message-content {
+  background: linear-gradient(180deg, var(--panel), var(--bg-1)) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--text-0) !important;
+  box-shadow: var(--shadow-2) !important;
+}
+
+/* Input styling override */
+.input-container {
+  background: var(--panel) !important;
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.message-input {
+  background: var(--bg-0) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--text-0) !important;
+}
+
+.message-input:focus {
+  border-color: rgba(110,231,255,0.35) !important;
+  box-shadow: 0 0 0 3px rgba(110,231,255,0.12) !important;
+}
+
+.send-btn {
+  background: linear-gradient(135deg, var(--acc-1), var(--acc-3)) !important;
+  color: #081118 !important;
+}
+
+/* Code blocks override */
+.message-content pre {
+  background: var(--bg-0) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--text-0) !important;
+}
+
+.message-content code:not(pre code) {
+  background: rgba(34,211,238,0.15) !important;
+  color: var(--acc-2) !important;
+}
+
+/* Action buttons override */
+.action-btn.regenerate {
+  background: var(--acc-1) !important;
+  color: #081118 !important;
+}
+
+.action-btn.copy {
+  background: var(--muted) !important;
+  color: var(--bg-0) !important;
+}
+
+/* Session info override */
+.session-info {
+  background: rgba(16,185,129,0.15) !important;
+  border: 1px solid rgba(16,185,129,0.25) !important;
+  color: var(--text-0) !important;
+}
+
+/* Admin controls override */
+.admin-controls {
+  background: rgba(245,158,11,0.15) !important;
+  border: 1px solid rgba(245,158,11,0.25) !important;
+  color: var(--text-0) !important;
+}
+
+.admin-controls h4 {
+  color: var(--warning) !important;
+}
+
+/* Modal override */
+.modal-content {
+  background: var(--panel) !important;
+  color: var(--text-0) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+
+.modal-header {
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+/* Error and success messages */
+.error {
+  background: rgba(239,68,68,0.15) !important;
+  color: var(--danger) !important;
+  border: 1px solid rgba(239,68,68,0.25) !important;
+}
+
+.success {
+  background: rgba(16,185,129,0.15) !important;
+  color: var(--success) !important;
+  border: 1px solid rgba(16,185,129,0.25) !important;
+}
+
+/* Scrollbar override */
+*::-webkit-scrollbar { 
+  height: 10px; 
+  width: 10px; 
+}
+
+*::-webkit-scrollbar-thumb { 
+  background: rgba(34,211,238,0.35) !important; 
+  border-radius: 8px; 
+}
+
+*::-webkit-scrollbar-track { 
+  background: var(--bg-0) !important; 
+}
+
+/* Theme selector styling */
+.theme-selector {
+  background: var(--panel) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.theme-selector h3 {
+  color: var(--text-0) !important;
+}
+
+/* Aurora animation for active elements */
+@keyframes aurora {
+  0%, 100% { filter: hue-rotate(0deg) brightness(1); }
+  25% { filter: hue-rotate(90deg) brightness(1.1); }
+  50% { filter: hue-rotate(180deg) brightness(0.9); }
+  75% { filter: hue-rotate(270deg) brightness(1.1); }
+}
+
+.mode-btn.active, .control-btn:hover, .send-btn:hover {
+  animation: aurora 3s ease-in-out infinite !important;
+}
