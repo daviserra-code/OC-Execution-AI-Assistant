@@ -183,10 +183,6 @@ try:
     init_database()
     print("✅ Database initialized successfully")
 
-    # Initialize vector database for enhanced AI capabilities
-    if HAS_VECTOR_SUPPORT:
-        initialize_vector_db()
-
     # Test database connection
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -197,6 +193,13 @@ try:
         print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
 except Exception as e:
     print(f"❌ Database initialization error: {e}")
+
+# Initialize vector database for enhanced AI capabilities
+if HAS_VECTOR_SUPPORT:
+    try:
+        initialize_vector_db()
+    except Exception as e:
+        print(f"❌ Vector database initialization error: {e}")
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
