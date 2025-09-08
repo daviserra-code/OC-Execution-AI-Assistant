@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, custom-theme, shrink-to-fit=no">
     <title>Teyra your AI Assistant</title>
-    <link rel="stylesheet" href="/css/teyra.theme.css">
+    <link rel="stylesheet" href="/static/css/teyra.theme.css">
     <link rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="256" y2="256"><stop offset="0" stop-color="%2322D3EE"/><stop offset="0.35" stop-color="%236EE7FF"/><stop offset="0.7" stop-color="%23A78BFA"/><stop offset="1" stop-color="%23F472B6"/></linearGradient></defs><circle cx="128" cy="128" r="116" fill="url(%23g)"/><circle cx="128" cy="128" r="54" fill="%230B0F14"/><circle cx="128" cy="128" r="24" fill="url(%23g)"/></svg>'>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
@@ -710,7 +710,19 @@
     <section id="welcomeLanding" class="container">
         <div class="header" style="display:flex;align-items:center;gap:14px;padding:10px 0; width: 100%; justify-content: space-between;">
             <div style="display:flex;align-items:center;gap:14px;">
-                <img src="/img/teyralogomark.svg" alt="TEYRA" width="28" height="28" />
+                <svg width="28" height="28" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="teyra-logo" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+                            <stop offset="0" stop-color="#22D3EE"/>
+                            <stop offset="0.35" stop-color="#6EE7FF"/>
+                            <stop offset="0.7" stop-color="#A78BFA"/>
+                            <stop offset="1" stop-color="#F472B6"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="128" cy="128" r="116" fill="url(#teyra-logo)"/>
+                    <circle cx="128" cy="128" r="54" fill="#0B0F14"/>
+                    <circle cx="128" cy="128" r="24" fill="url(#teyra-logo)"/>
+                </svg>
                 <strong style="letter-spacing:.6px;">TEYRA</strong>
             </div>
             <div style="margin-left:auto;display:flex;gap:10px;">
@@ -722,7 +734,19 @@
         <div class="content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: calc(100vh - 80px); text-align: center;">
             <div class="card glass" style="padding: 40px; border-radius: 16px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px);">
                 <div class="head" style="display:flex;align-items:center;gap:12px;justify-content: center;">
-                    <img src="/img/teyralogomark.svg" alt="" width="22" height="22">
+                    <svg width="22" height="22" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="teyra-logo-small" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+                                <stop offset="0" stop-color="#22D3EE"/>
+                                <stop offset="0.35" stop-color="#6EE7FF"/>
+                                <stop offset="0.7" stop-color="#A78BFA"/>
+                                <stop offset="1" stop-color="#F472B6"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="128" cy="128" r="116" fill="url(#teyra-logo-small)"/>
+                        <circle cx="128" cy="128" r="54" fill="#0B0F14"/>
+                        <circle cx="128" cy="128" r="24" fill="url(#teyra-logo-small)"/>
+                    </svg>
                     <strong>Omni-Comprehensive Assistant • TEYRA</strong>
                 </div>
                 <div class="body">
