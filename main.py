@@ -194,12 +194,7 @@ try:
 except Exception as e:
     print(f"❌ Database initialization error: {e}")
 
-# Initialize vector database for enhanced AI capabilities
-if HAS_VECTOR_SUPPORT:
-    try:
-        initialize_vector_db()
-    except Exception as e:
-        print(f"❌ Vector database initialization error: {e}")
+# Vector database will be initialized on first use
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -335,8 +330,17 @@ def initialize_vector_db():
             sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
             vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
             print("✅ Vector database initialized for enhanced AI capabilities")
+            return True
         except Exception as e:
             print(f"⚠️  Could not initialize vector database: {e}")
+            return False
+    else:
+        print("⚠️  Vector database support not available. Install sentence-transformers and faiss-cpu for enhanced AI capabilities.")
+        return False
+
+# Initialize vector database now
+if HAS_VECTOR_SUPPORT:
+    initialize_vector_db()
 
 def analyze_code_structure(code_content, file_extension):
     """Analyze code structure and extract meaningful information"""
