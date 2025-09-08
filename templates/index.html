@@ -1,14 +1,13 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, custom-theme, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teyra your AI Assistant</title>
-    <link rel="stylesheet" href="/static/css/teyra.theme.css">
-    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="256" y2="256"><stop offset="0" stop-color="%2322D3EE"/><stop offset="0.35" stop-color="%236EE7FF"/><stop offset="0.7" stop-color="%23A78BFA"/><stop offset="1" stop-color="%23F472B6"/></linearGradient></defs><circle cx="128" cy="128" r="116" fill="url(%23g)"/><circle cx="128" cy="128" r="54" fill="%230B0F14"/><circle cx="128" cy="128" r="24" fill="url(%23g)"/></svg>'>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-    <link href="/static/teyra-theme.css" rel="stylesheet" id="teyra-theme">
+    <link href="/static/teyra-theme.css" rel="stylesheet" id="teyra-theme" disabled>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
@@ -667,13 +666,13 @@
             .container {
                 flex-direction: column;
             }
-
+            
             .sidebar {
                 width: 100%;
                 height: auto;
                 max-height: 50vh;
             }
-
+            
             .message-content {
                 max-width: 95%;
             }
@@ -706,63 +705,7 @@
         </div>
     </div>
 
-    <!-- Landing Page Section -->
-    <section id="welcomeLanding" class="container">
-        <div class="header" style="display:flex;align-items:center;gap:14px;padding:10px 0; width: 100%; justify-content: space-between;">
-            <div style="display:flex;align-items:center;gap:14px;">
-                <svg width="28" height="28" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="teyra-logo" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
-                            <stop offset="0" stop-color="#22D3EE"/>
-                            <stop offset="0.35" stop-color="#6EE7FF"/>
-                            <stop offset="0.7" stop-color="#A78BFA"/>
-                            <stop offset="1" stop-color="#F472B6"/>
-                        </linearGradient>
-                    </defs>
-                    <circle cx="128" cy="128" r="116" fill="url(#teyra-logo)"/>
-                    <circle cx="128" cy="128" r="54" fill="#0B0F14"/>
-                    <circle cx="128" cy="128" r="24" fill="url(#teyra-logo)"/>
-                </svg>
-                <strong style="letter-spacing:.6px;">TEYRA</strong>
-            </div>
-            <div style="margin-left:auto;display:flex;gap:10px;">
-                <button class="btn ghost">Docs</button>
-                <button class="btn" onclick="startNewSession()">Launch</button>
-            </div>
-        </div>
-
-        <div class="content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: calc(100vh - 80px); text-align: center; padding: 20px;">
-            <div class="welcome-card" style="padding: 50px; border-radius: 20px; background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.1)); backdrop-filter: blur(20px); border: 2px solid rgba(34, 211, 238, 0.2); box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3); max-width: 600px; width: 100%;">
-                <div class="head" style="display:flex;align-items:center;gap:12px;justify-content: center; margin-bottom: 30px;">
-                    <svg width="32" height="32" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="teyra-logo-main" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
-                                <stop offset="0" stop-color="#22D3EE"/>
-                                <stop offset="0.35" stop-color="#6EE7FF"/>
-                                <stop offset="0.7" stop-color="#A78BFA"/>
-                                <stop offset="1" stop-color="#F472B6"/>
-                            </linearGradient>
-                        </defs>
-                        <circle cx="128" cy="128" r="116" fill="url(#teyra-logo-main)"/>
-                        <circle cx="128" cy="128" r="54" fill="#0B0F14"/>
-                        <circle cx="128" cy="128" r="24" fill="url(#teyra-logo-main)"/>
-                    </svg>
-                    <strong style="color: #E6ECF8; font-size: 24px; font-weight: 700;">TEYRA</strong>
-                </div>
-                <div class="body">
-                    <h1 style="color: #E6ECF8; font-size: 2em; margin: 0 0 20px 0; font-weight: 600;">Omni-Comprehensive Assistant</h1>
-                    <p style="font-size: 1.3em; margin: 20px 0 40px 0; color: #B4C2D7; line-height: 1.6;">Watchful. Helpful. Fast. A sentinel-grade companion that stays out of your way.</p>
-                    <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
-                        <button onclick="startNewSession()" style="padding: 16px 32px; border-radius: 12px; border: none; background: linear-gradient(135deg, #22D3EE, #A78BFA); color: #0B0F14; cursor: pointer; font-size: 18px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 8px 25px rgba(34, 211, 238, 0.3);">🚀 Start New Session</button>
-                        <button style="padding: 16px 32px; border-radius: 12px; border: 2px solid #22D3EE; background: transparent; color: #22D3EE; cursor: pointer; font-size: 18px; font-weight: bold; transition: all 0.3s ease;">⚙️ Settings</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Main App Container -->
-    <div class="container" style="display: none;"> <!-- Initially hidden, shown by startNewSession -->
+    <div class="container">
         <div class="sidebar">
             <div class="logo">
                 <h1>
@@ -794,14 +737,14 @@
                 </h1>
                 <p>Advanced Software Architecture, Opcenter Expert and Prompt Maker</p>
             </div>
-
+            
             <div class="mode-selector">
                 <h3><i class="fas fa-cog"></i> Assistant Mode</h3>
                 <div class="mode-buttons" id="modeButtons">
                     <!-- Modes will be populated by JavaScript -->
                 </div>
             </div>
-
+            
             <div class="theme-selector" style="background: #f8f9fa; border-radius: 15px; padding: 15px; margin-bottom: 20px;">
                 <h3><i class="fas fa-palette"></i> Theme</h3>
                 <div class="theme-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -813,7 +756,7 @@
                     </button>
                 </div>
             </div>
-
+            
             <div class="upload-section">
                 <h3><i class="fas fa-upload"></i> Upload Files</h3>
                 <div class="file-input-wrapper">
@@ -827,7 +770,7 @@
                     Supports: Code files, Documents, Images, etc.
                 </p>
             </div>
-
+            
             <div class="templates-section">
                 <h3><i class="fas fa-file-alt"></i> Quick Templates</h3>
                 <button class="template-btn" onclick="loadTemplate('adr')">
@@ -840,7 +783,7 @@
                     👨‍💻 Code Review Checklist
                 </button>
             </div>
-
+            
             <div class="session-info" style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
                 <div style="display: flex; align-items: center; margin-bottom: 5px;">
                     <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
@@ -850,7 +793,7 @@
                     Loading session info...
                 </div>
             </div>
-
+            
             <div class="admin-controls" id="adminControls">
                 <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
                 <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
@@ -882,7 +825,7 @@
                 </button>
             </div>
         </div>
-
+        
         <div class="chat-container">
             <div class="chat-header">
                 <div>
@@ -895,11 +838,11 @@
                     </div>
                 </div>
             </div>
-
+            
             <div id="chatMessages" class="chat-messages">
                 <!-- Chat history will be loaded here -->
             </div>
-
+            
             <div class="input-container">
                 <div class="input-wrapper">
                     <textarea 
@@ -986,7 +929,7 @@
         let isLoading = false;
         let currentMessageIndex = 0;
         let availableModes = {};
-
+        
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             loadModes();
@@ -1004,10 +947,6 @@
                     useMaxWidth: true
                 }
             });
-
-            // Show landing page by default, hide main app
-            document.getElementById('welcomeLanding').style.display = 'flex';
-            document.querySelector('.container').style.display = 'none';
         });
 
         function initializeEventListeners() {
@@ -1052,7 +991,7 @@
                 availableModes = data.modes;
                 const modeButtons = document.getElementById('modeButtons');
                 modeButtons.innerHTML = '';
-
+                
                 Object.keys(availableModes).forEach(modeKey => {
                     const mode = availableModes[modeKey];
                     const button = document.createElement('button');
@@ -1062,7 +1001,7 @@
                     button.onclick = () => setAssistantMode(modeKey);
                     modeButtons.appendChild(button);
                 });
-
+                
                 // Set general mode as active by default
                 setAssistantMode('general');
             });
@@ -1082,10 +1021,10 @@
                         btn.classList.remove('active');
                     });
                     document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-
+                    
                     const modeDisplay = document.getElementById('currentModeDisplay');
                     modeDisplay.innerHTML = `${data.mode_info.icon} ${data.mode_info.name}`;
-
+                    
                     addMessage('assistant', `🔄 **Mode switched to: ${data.mode_info.name}**\n\nI'm now optimized for ${data.mode_info.name.toLowerCase()} tasks. How can I help you?`);
                 }
             });
@@ -1094,14 +1033,14 @@
         function handleFileUpload(event) {
             const files = event.target.files;
             const preview = document.getElementById('filePreview');
-
+            
             if (files.length > 0) {
                 preview.innerHTML = '';
-
+                
                 Array.from(files).forEach(file => {
                     const formData = new FormData();
                     formData.append('file', file);
-
+                    
                     fetch('/upload', {
                         method: 'POST',
                         body: formData
@@ -1148,53 +1087,22 @@
             });
         }
 
-        function startNewSession() {
-            // Hide landing page and show chat interface
-            document.getElementById('welcomeLanding').style.display = 'none';
-            document.querySelector('.container').style.display = 'flex'; // Show the main app container
-
-            // Show welcome message
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.innerHTML = `
-                <div class="message assistant">
-                    <div class="message-content">
-                        <strong>🌌 Welcome to TEYRA Architecture Assistant!</strong><br><br>
-                        I'm your comprehensive Software Architecture Assistant with advanced capabilities:
-                        <ul style="margin: 10px 0; padding-left: 20px;">
-                            <li>🎯 <strong>Specialized Modes:</strong> Switch between Architecture Review, Code Review, Documentation, and Opcenter Expert modes</li>
-                            <li>📁 <strong>Enhanced File Support:</strong> Better file processing with full content analysis</li>
-                            <li>⚡ <strong>Smart Responses:</strong> Streaming responses, regeneration, and improved context memory</li>
-                            <li>📋 <strong>Quick Templates:</strong> ADR, HLD, and Code Review templates</li>
-                            <li>💾 <strong>Export Options:</strong> Save conversations in JSON or Markdown format</li>
-                            <li>🧠 <strong>Better Memory:</strong> Enhanced context management with conversation summaries</li>
-                            <li>🎯 <strong>Persistent Storage:</strong> Your conversations are automatically saved</li>
-                            <li>💾 <strong>Bob:The Prompt-Maker:</strong> AI prompt optimizer for better results</li>
-                        </ul>
-                        Select your preferred mode and start asking questions!
-                    </div>
-                </div>
-            `;
-
-            // Focus on input
-            document.getElementById('messageInput').focus();
-        }
-
         function sendMessage(regenerate = false) {
             if (isLoading) return;
-
+            
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-
+            
             if (!message && !regenerate) return;
-
+            
             if (!regenerate) {
                 addMessage('user', message);
                 input.value = '';
                 input.style.height = 'auto';
             }
-
+            
             showStreamingIndicator();
-
+            
             // Use regular chat for regeneration, streaming for new messages
             if (regenerate) {
                 regularChat(message, true);
@@ -1206,11 +1114,11 @@
         function streamingChat(message) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-
+            
             // Add placeholder message for streaming
             const messageDiv = addMessage('assistant', '', true);
             const contentDiv = messageDiv.querySelector('.message-content');
-
+            
             fetch('/chat_stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1220,24 +1128,24 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullResponse = '';
-
+                
                 function readStream() {
                     return reader.read().then(({ done, value }) => {
                         if (done) {
                             hideStreamingIndicator();
                             addMessageActions(messageDiv, fullResponse);
                             renderMermaidDiagrams();
-
+                            
                             // Save chat history after streaming completes
                             if (fullResponse) {
                                 saveChatToSession(message, fullResponse);
                             }
                             return;
                         }
-
+                        
                         const chunk = decoder.decode(value);
                         const lines = chunk.split('\n');
-
+                        
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
                                 try {
@@ -1253,12 +1161,12 @@
                                     } else if (data.done) {
                                         hideStreamingIndicator();
                                         addMessageActions(messageDiv, fullResponse);
-
+                                        
                                         // Final render of Mermaid diagrams after streaming is complete
                                         setTimeout(() => {
                                             renderMermaidDiagrams();
                                         }, 500);
-
+                                        
                                         // Save chat history after streaming completes
                                         if (fullResponse) {
                                             saveChatToSession(message, fullResponse);
@@ -1270,11 +1178,11 @@
                                 }
                             }
                         }
-
+                        
                         return readStream();
                     });
                 }
-
+                
                 return readStream();
             })
             .catch(error => {
@@ -1287,9 +1195,9 @@
             // Get current mode from UI
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-
+            
             console.log('Saving chat to session...', { mode, userMessageLength: userMessage.length, responseLength: assistantResponse.length });
-
+            
             fetch('/save_chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1317,7 +1225,7 @@
         function regularChat(message, regenerate = false) {
             isLoading = true;
             document.getElementById('sendBtn').disabled = true;
-
+            
             fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1349,17 +1257,17 @@
             messageDiv.className = `message ${sender}`;
             currentMessageIndex++;
             messageDiv.setAttribute('data-message-id', currentMessageIndex);
-
+            
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-
+            
             if (!isPlaceholder) {
                 contentDiv.innerHTML = formatMessage(content);
             }
-
+            
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
-
+            
             scrollToBottom();
             return messageDiv;
         }
@@ -1367,7 +1275,7 @@
         function addMessageActions(messageDiv, content) {
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-actions';
-
+            
             if (messageDiv.classList.contains('assistant')) {
                 actionsDiv.innerHTML = `
                     <button class="action-btn regenerate" onclick="regenerateResponse(${messageDiv.getAttribute('data-message-id')})">
@@ -1384,7 +1292,7 @@
                     </button>
                 `;
             }
-
+            
             messageDiv.appendChild(actionsDiv);
         }
 
@@ -1407,7 +1315,7 @@
                     toRemove.remove();
                 }
                 messageDiv.remove();
-
+                
                 // Regenerate the response
                 sendMessage(true);
             }
@@ -1442,12 +1350,12 @@
                 .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
                 .replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>')
                 .replace(/\n/g, '<br>');
-
+            
             // Process Mermaid diagrams after a short delay
             setTimeout(() => {
                 renderMermaidDiagrams();
             }, 100);
-
+            
             return formatted;
         }
 
@@ -1527,7 +1435,7 @@
             .then(data => {
                 if (data.history) {
                     let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
-
+                    
                     if (data.count === 0) {
                         historyText += "No chat history found.";
                     } else {
@@ -1535,13 +1443,13 @@
                             const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
                             const mode = exchange.mode || 'general';
                             const modeInfo = availableModes[mode] || { name: 'General' };
-
+                            
                             historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
                             historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
                             historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
                         });
                     }
-
+                    
                     addMessage('assistant', historyText);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1555,7 +1463,7 @@
 
         function exportConversation(format) {
             const url = `/export_conversation?format=${format}`;
-
+            
             if (format === 'json') {
                 fetch(url)
                 .then(response => response.json())
@@ -1570,7 +1478,7 @@
                     downloadFile(blob, `conversation_${Date.now()}.md`);
                 });
             }
-
+            
             document.getElementById('exportModal').style.display = 'none';
         }
 
@@ -1594,7 +1502,7 @@
                     const sessionInfo = document.getElementById('sessionInfo');
                     const createdDate = new Date(data.created_at).toLocaleDateString();
                     const lastActivity = new Date(data.last_activity).toLocaleString();
-
+                    
                     sessionInfo.innerHTML = `
                         <div>Messages: ${data.message_count}</div>
                         <div>Started: ${createdDate}</div>
@@ -1614,19 +1522,19 @@
             .then(data => {
                 console.log('Loaded chat history:', data);
                 const chatMessages = document.getElementById('chatMessages');
-
+                
                 if (data.history && data.history.length > 0) {
                     // Clear welcome message
                     chatMessages.innerHTML = '';
-
+                    
                     // Display each exchange from history
                     data.history.forEach(exchange => {
                         const userMessageDiv = addMessage('user', exchange.user);
                         addMessageActions(userMessageDiv, exchange.user);
-
+                        
                         const assistantMessageDiv = addMessage('assistant', exchange.assistant);
                         addMessageActions(assistantMessageDiv, exchange.assistant);
-
+                        
                         // Add timestamp info if available
                         if (exchange.timestamp) {
                             const timestampDiv = document.createElement('div');
@@ -1635,12 +1543,12 @@
                             assistantMessageDiv.appendChild(timestampDiv);
                         }
                     });
-
+                    
                     // Render any Mermaid diagrams in the loaded history
                     setTimeout(() => {
                         renderMermaidDiagrams();
                     }, 500);
-
+                    
                     console.log(`Loaded ${data.history.length} chat exchanges from database`);
                 } else {
                     // Show welcome message if no history
@@ -1667,7 +1575,7 @@ BASIC using Claude – Help with my resume</li>
                     `;
                     console.log('No previous chat history found - showing welcome message');
                 }
-
+                
                 scrollToBottom();
             })
             .catch(error => {
@@ -1699,7 +1607,7 @@ BASIC using Claude – Help with my resume</li>
 **Total Messages:** ${data.message_count}
 
 Your chat history is automatically saved to a local SQLite database and will persist between browser sessions. This session will remain active until manually cleared or after 30 days of inactivity.`;
-
+                    
                     addMessage('assistant', sessionDetails);
                 } else {
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -1722,18 +1630,80 @@ Your chat history is automatically saved to a local SQLite database and will per
             document.getElementById('adminLoginForm').reset();
         }
 
-        function adminRequired(functionName) {
-            if (isAdminLoggedIn) {
-                // Call the original function
-                if (functionName === 'showPrompt') {
-                    showPrompt();
-                } else if (functionName === 'showSystemPromptEditor') {
-                    showSystemPromptEditor();
+        function showAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'block';
+        }
+
+        function hideAdminLogin() {
+            document.getElementById('adminLoginPanel').style.display = 'none';
+            document.getElementById('adminLoginForm').reset();
+        }
+
+        function showSessionInfo() {
+            fetch('/get_session_info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.session_id) {
+                    const sessionDetails = `**📊 Session Information:**
+
+**Session ID:** ${data.session_id}
+**Created:** ${new Date(data.created_at).toLocaleString()}
+**Last Activity:** ${new Date(data.last_activity).toLocaleString()}
+**Total Messages:** ${data.message_count}
+
+Your chat history is automatically saved to a local SQLite database and will persist between browser sessions.`;
+                    
+                    addMessage('assistant', sessionDetails);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
                 }
-            } else {
-                addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
-                showAdminLogin();
-            }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading session info: ${error.message}`);
+            });
+        }
+
+        function showChatHistory() {
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    let historyText = `**📜 Chat History (${data.count} exchanges):**\n\n`;
+                    
+                    if (data.count === 0) {
+                        historyText += "No chat history found.";
+                    } else {
+                        data.history.forEach((exchange, index) => {
+                            const timestamp = exchange.timestamp ? new Date(exchange.timestamp).toLocaleString() : 'Unknown time';
+                            const mode = exchange.mode || 'general';
+                            const modeInfo = availableModes[mode] || { name: 'General' };
+                            
+                            historyText += `**Exchange ${index + 1}** (${timestamp} - ${modeInfo.name}):\n`;
+                            historyText += `**User:** ${exchange.user.substring(0, 150)}${exchange.user.length > 150 ? '...' : ''}\n`;
+                            historyText += `**Assistant:** ${exchange.assistant.substring(0, 200)}${exchange.assistant.length > 200 ? '...' : ''}\n\n`;
+                        });
+                    }
+                    
+                    addMessage('assistant', historyText);
+                } else {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                }
+            });
+        }
+
+        function loadTemplate(templateType) {
+            fetch(`/templates/${templateType}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
+                    document.getElementById('messageInput').style.height = 'auto';
+                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading template: ${error.message}`);
+            });
         }
 
         function showSystemPromptEditor() {
@@ -1741,7 +1711,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 adminRequired('showSystemPromptEditor');
                 return;
             }
-
+            
             // Get current system prompt
             fetch('/get_prompt')
             .then(response => response.json())
@@ -1752,7 +1722,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                     textarea.value = data.prompt;
                     textarea.style.height = '500px'; // Make it larger
                     textarea.style.minHeight = '400px';
-
+                    
                     document.getElementById('currentModeInfo').innerHTML = `
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 18px;">${data.mode_info.icon}</span>
@@ -1762,10 +1732,10 @@ Your chat history is automatically saved to a local SQLite database and will per
                             </div>
                         </div>
                     `;
-
+                    
                     // Show the modal
                     document.getElementById('systemPromptModal').style.display = 'block';
-
+                    
                     // Focus on textarea
                     setTimeout(() => {
                         textarea.focus();
@@ -1781,16 +1751,16 @@ Your chat history is automatically saved to a local SQLite database and will per
 
         function saveSystemPrompt() {
             const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
-
+            
             if (!newPrompt) {
                 alert('System prompt cannot be empty!');
                 return;
             }
-
+            
             // Get current mode
             const activeMode = document.querySelector('.mode-btn.active');
             const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-
+            
             // Save to backend with persistence
             fetch('/save_system_prompt', {
                 method: 'POST',
@@ -1819,7 +1789,7 @@ Your chat history is automatically saved to a local SQLite database and will per
             if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
                 const activeMode = document.querySelector('.mode-btn.active');
                 const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-
+                
                 fetch('/reset_system_prompt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1828,9 +1798,142 @@ Your chat history is automatically saved to a local SQLite database and will per
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\'The system prompt has been restored to its original default value and saved.');
+                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
+                                   'The system prompt has been restored to its original default value and saved.');
                         closeModal('systemPromptModal');
+                        
+                        // Refresh the textarea with the default prompt
+                        document.getElementById('systemPromptTextarea').value = data.default_prompt;
+                    } else {
+                        alert('Error resetting prompt: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Network error: ' + error.message);
+                });
+            }
+        }
 
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('adminControls').style.display = 'none';
+            addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function adminRequired(functionName) {
+            if (isAdminLoggedIn) {
+                // Call the original function
+                if (functionName === 'showPrompt') {
+                    showPrompt();
+                } else if (functionName === 'showSystemPromptEditor') {
+                    showSystemPromptEditor();
+                }
+            } else {
+                addMessage('assistant', '🔒 **Administrator access required.**\n\nPlease log in as an administrator to view system prompts and access advanced settings.');
+                showAdminLogin();
+            }
+        }
+
+        function showSystemPromptEditor() {
+            if (!isAdminLoggedIn) {
+                adminRequired('showSystemPromptEditor');
+                return;
+            }
+            
+            // Get current system prompt
+            fetch('/get_prompt')
+            .then(response => response.json())
+            .then(data => {
+                if (data.prompt) {
+                    // Populate the modal with larger textarea
+                    const textarea = document.getElementById('systemPromptTextarea');
+                    textarea.value = data.prompt;
+                    textarea.style.height = '500px'; // Make it larger
+                    textarea.style.minHeight = '400px';
+                    
+                    document.getElementById('currentModeInfo').innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 18px;">${data.mode_info.icon}</span>
+                            <div>
+                                <strong>${data.mode_info.name}</strong>
+                                <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show the modal
+                    document.getElementById('systemPromptModal').style.display = 'block';
+                    
+                    // Focus on textarea
+                    setTimeout(() => {
+                        textarea.focus();
+                    }, 100);
+                } else {
+                    addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Network error: ${error.message}`);
+            });
+        }
+
+        function saveSystemPrompt() {
+            const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
+            
+            if (!newPrompt) {
+                alert('System prompt cannot be empty!');
+                return;
+            }
+            
+            // Get current mode
+            const activeMode = document.querySelector('.mode-btn.active');
+            const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+            
+            // Save to backend with persistence
+            fetch('/save_system_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    mode: mode,
+                    prompt: newPrompt 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addMessage('assistant', '✅ **System prompt updated and saved!**\n\n' + 
+                               'The system prompt for ' + data.mode_info.name + ' mode has been permanently updated and saved to the database.');
+                    closeModal('systemPromptModal');
+                } else {
+                    alert('Error saving system prompt: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Network error saving prompt: ' + error.message);
+            });
+        }
+
+        function resetSystemPrompt() {
+            if (confirm('Are you sure you want to reset the system prompt to its default value? This cannot be undone.')) {
+                const activeMode = document.querySelector('.mode-btn.active');
+                const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
+                
+                fetch('/reset_system_prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
+                                   'The system prompt has been restored to its original default value and saved.');
+                        closeModal('systemPromptModal');
+                        
                         // Refresh the textarea with the default prompt
                         document.getElementById('systemPromptTextarea').value = data.default_prompt;
                     } else {
@@ -1853,6 +1956,22 @@ Your chat history is automatically saved to a local SQLite database and will per
             addMessage('assistant', '👋 **Administrator logged out successfully.**\n\nSystem prompts are now protected. Please log in again to access administrative features.');
         }
 
+        // Template loading function
+        function loadTemplate(templateType) {
+            fetch(`/templates/${templateType}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('messageInput').value = `Please help me create a ${data.name}:\n\n${data.content}`;
+                    document.getElementById('messageInput').style.height = 'auto';
+                    document.getElementById('messageInput').style.height = Math.min(document.getElementById('messageInput').scrollHeight, 150) + 'px';
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', `❌ Error loading template: ${error.message}`);
+            });
+        }
+
         // Theme switching functionality
         function initializeThemeSelector() {
             // Load saved theme from localStorage
@@ -1863,7 +1982,7 @@ Your chat history is automatically saved to a local SQLite database and will per
         function switchTheme(themeName) {
             const teyraTheme = document.getElementById('teyra-theme');
             const themeButtons = document.querySelectorAll('.theme-btn');
-
+            
             // Remove active class from all theme buttons
             themeButtons.forEach(btn => {
                 btn.classList.remove('active');
@@ -1871,7 +1990,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 btn.style.color = '#333';
                 btn.style.borderColor = '#e9ecef';
             });
-
+            
             // Add active class to selected theme button
             const activeButton = document.querySelector(`[data-theme="${themeName}"]`);
             if (activeButton) {
@@ -1886,7 +2005,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                     activeButton.style.borderColor = '#22D3EE';
                 }
             }
-
+            
             if (themeName === 'teyra') {
                 // Enable Teyra theme
                 teyraTheme.disabled = false;
@@ -1896,10 +2015,10 @@ Your chat history is automatically saved to a local SQLite database and will per
                 teyraTheme.disabled = true;
                 addMessage('assistant', '🎨 **Classic theme activated!** \n\nBack to the original colorful gradient theme with glassmorphism design.');
             }
-
+            
             // Save theme preference
             localStorage.setItem('selectedTheme', themeName);
-
+            
             // Update mermaid theme if needed
             const mermaidTheme = themeName === 'teyra' ? 'dark' : 'default';
             mermaid.initialize({ 
@@ -1919,10 +2038,10 @@ Your chat history is automatically saved to a local SQLite database and will per
             if (adminForm) {
                 adminForm.addEventListener('submit', function(e) {
                     e.preventDefault();
-
+                    
                     const username = document.getElementById('adminUsername').value;
                     const password = document.getElementById('adminPassword').value;
-
+                    
                     // Simple demo authentication (in production, this should be server-side)
                     if (username === 'admin' && password === 'admin123') {
                         isAdminLoggedIn = true;
