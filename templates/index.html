@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, custom-theme, shrink-to-fit=no">
     <title>Teyra your AI Assistant</title>
     <link rel="stylesheet" href="/css/teyra.theme.css">
-    <link rel="icon" type="image/svg+xml" href="/img/teyralogomark.svg">
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="256" y2="256"><stop offset="0" stop-color="%2322D3EE"/><stop offset="0.35" stop-color="%236EE7FF"/><stop offset="0.7" stop-color="%23A78BFA"/><stop offset="1" stop-color="%23F472B6"/></linearGradient></defs><circle cx="128" cy="128" r="116" fill="url(%23g)"/><circle cx="128" cy="128" r="54" fill="%230B0F14"/><circle cx="128" cy="128" r="24" fill="url(%23g)"/></svg>'>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
     <link href="/static/teyra-theme.css" rel="stylesheet" id="teyra-theme">
@@ -1803,8 +1803,7 @@ Your chat history is automatically saved to a local SQLite database and will per
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\n' +
-                                   'The system prompt has been restored to its original default value and saved.');
+                        addMessage('assistant', '🔄 **System prompt reset to default!**\n\'The system prompt has been restored to its original default value and saved.');
                         closeModal('systemPromptModal');
 
                         // Refresh the textarea with the default prompt
