@@ -1064,10 +1064,14 @@
                                 <div class="file-content">${data.content}</div>
                             `;
                             preview.appendChild(fileItem);
+                            // Refresh vector DB status after successful upload
+                            setTimeout(() => {
+                                loadVectorDbStatus();
+                            }, 1000);
                         } else {
                             const errorItem = document.createElement('div');
                             errorItem.className = 'error';
-                            errorItem.innerHTML = `<strong>❌ ${file.name}</strong><br>${data.error}`;
+                            errorItem.innerHTML = `<strong>❌ ${data.original_name}</strong><br>${data.error}`;
                             preview.appendChild(errorItem);
                         }
                     })
@@ -2053,6 +2057,15 @@ Your chat history is automatically saved to a local SQLite database and will per
                     console.error('Error:', error);
                     alert('Error fetching vector database stats');
                 });
+        }
+
+        function loadVectorDbStatus() {
+            // This function would fetch and update the status of the vector DB,
+            // possibly displayed somewhere on the page or used internally.
+            // For this example, we'll just log it.
+            console.log('Refreshing Vector DB Status...');
+            // In a real app, you'd likely call /vector_db_stats or a similar endpoint
+            // and update a UI element if one exists for this purpose.
         }
 
         function searchDocuments() {

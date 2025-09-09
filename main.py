@@ -209,7 +209,7 @@ def init_app_background():
             print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
     except Exception as e:
         print(f"❌ Database stats error: {e}")
-    
+
     # Initialize vector database in background
     if HAS_VECTOR_SUPPORT:
         try:
@@ -407,12 +407,13 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Enhanced Vector Database for RAG
+# Enhanced RAG Implementation
 vector_db = None
 sentence_model = None
 vector_db_initialized = False
-document_store = {}  # Maps document IDs to metadata
-chunk_store = {}     # Maps chunk IDs to content and metadata
+document_store = {}
+document_embeddings = []
+document_metadata = []
 
 def initialize_vector_db():
     """Initialize vector database for RAG capabilities - runs asynchronously"""
@@ -423,9 +424,6 @@ def initialize_vector_db():
             vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
             vector_db_initialized = True
             print("✅ Vector database initialized for enhanced AI capabilities")
-            
-            # Load existing documents from database if any
-            load_existing_documents()
             return True
         except Exception as e:
             print(f"⚠️  Could not initialize vector database: {e}")
@@ -435,233 +433,133 @@ def initialize_vector_db():
         return False
 
 def chunk_text(text, chunk_size=500, overlap=50):
-    """Split text into overlapping chunks for better semantic search"""
-    words = text.split()
+    """Split text into overlapping chunks for better retrieval"""
+    if len(text) <= chunk_size:
+        return [text]
+
     chunks = []
-    
-    for i in range(0, len(words), chunk_size - overlap):
-        chunk = ' '.join(words[i:i + chunk_size])
-        if chunk.strip():
-            chunks.append(chunk)
-        
-        # Break if we've reached the end
-        if i + chunk_size >= len(words):
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        chunk = text[start:end]
+
+        # Try to break at sentence boundaries
+        if end < len(text):
+            last_period = chunk.rfind('.')
+            last_newline = chunk.rfind('\n')
+            break_point = max(last_period, last_newline)
+            if break_point > start + chunk_size * 0.5:
+                chunk = chunk[:break_point + 1]
+                end = start + len(chunk)
+
+        chunks.append(chunk.strip())
+        start = end - overlap
+
+        if start >= len(text):
             break
-    
+
     return chunks
 
-def add_document_to_vector_db(content, filename, file_type='text'):
-    """Add a document to the vector database with semantic chunking"""
+def add_document_to_vector_db(content, filename, file_type):
+    """Add document chunks to vector database with enhanced metadata"""
+    global document_embeddings, document_metadata
+
     if not vector_db_initialized or not sentence_model:
         return False
-    
+
     try:
-        # Generate unique document ID
-        doc_id = hashlib.md5(f"{filename}_{time.time()}".encode()).hexdigest()
-        
         # Chunk the document
         chunks = chunk_text(content)
-        
-        if not chunks:
-            return False
-        
-        # Generate embeddings for all chunks
-        embeddings = sentence_model.encode(chunks)
-        
-        # Store document metadata
-        document_store[doc_id] = {
-            'filename': filename,
-            'file_type': file_type,
-            'total_chunks': len(chunks),
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Add each chunk to the vector database
-        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            chunk_id = f"{doc_id}_chunk_{i}"
-            
-            # Store chunk metadata
-            chunk_store[chunk_id] = {
-                'content': chunk,
-                'doc_id': doc_id,
+
+        for i, chunk in enumerate(chunks):
+            if len(chunk.strip()) < 10:  # Skip very short chunks
+                continue
+
+            # Generate embedding
+            embedding = sentence_model.encode([chunk])
+
+            # Store embedding and metadata
+            vector_db.add(embedding)
+            document_embeddings.append(embedding[0])
+            document_metadata.append({
                 'filename': filename,
+                'file_type': file_type,
                 'chunk_index': i,
-                'file_type': file_type
-            }
-            
-            # Add to FAISS index
-            vector_db.add(embedding.reshape(1, -1))
-        
-        # Save to database for persistence
-        save_document_to_db(doc_id, filename, content, file_type, len(chunks))
-        
-        print(f"✅ Added document '{filename}' to vector database with {len(chunks)} chunks")
+                'total_chunks': len(chunks),
+                'content': chunk,
+                'content_preview': chunk[:200] + '...' if len(chunk) > 200 else chunk
+            })
+
+        print(f"✅ Added {len(chunks)} chunks from {filename} to vector database")
         return True
-        
+
     except Exception as e:
         print(f"❌ Error adding document to vector database: {e}")
         return False
 
-def search_similar_content(query, k=5, similarity_threshold=0.3):
-    """Search for similar content using semantic search"""
-    if not vector_db_initialized or not sentence_model:
+def semantic_search(query, top_k=5, similarity_threshold=0.3):
+    """Perform semantic search on stored documents"""
+    if not vector_db_initialized or not sentence_model or len(document_metadata) == 0:
         return []
-    
+
     try:
         # Generate query embedding
         query_embedding = sentence_model.encode([query])
-        
-        # Search in vector database
-        scores, indices = vector_db.search(query_embedding, k)
-        
+
+        # Search vector database
+        scores, indices = vector_db.search(query_embedding, min(top_k * 2, len(document_metadata)))
+
+        # Filter by similarity threshold and prepare results
         results = []
-        chunk_ids = list(chunk_store.keys())
-        
         for score, idx in zip(scores[0], indices[0]):
-            if idx < len(chunk_ids) and score > similarity_threshold:
-                chunk_id = chunk_ids[idx]
-                chunk_data = chunk_store.get(chunk_id, {})
-                
-                if chunk_data:
-                    results.append({
-                        'content': chunk_data['content'],
-                        'filename': chunk_data['filename'],
-                        'similarity_score': float(score),
-                        'chunk_index': chunk_data['chunk_index'],
-                        'file_type': chunk_data['file_type']
-                    })
-        
-        # Sort by similarity score
+            if idx < len(document_metadata) and score > similarity_threshold:
+                metadata = document_metadata[idx]
+                results.append({
+                    'content': metadata['content'],
+                    'filename': metadata['filename'],
+                    'file_type': metadata['file_type'],
+                    'similarity_score': float(score),
+                    'content_preview': metadata['content_preview'],
+                    'chunk_info': f"Chunk {metadata['chunk_index'] + 1}/{metadata['total_chunks']}"
+                })
+
+        # Sort by similarity score (descending)
         results.sort(key=lambda x: x['similarity_score'], reverse=True)
-        return results
-        
+        return results[:top_k]
+
     except Exception as e:
-        print(f"❌ Error searching vector database: {e}")
+        print(f"❌ Error in semantic search: {e}")
         return []
 
-def save_document_to_db(doc_id, filename, content, file_type, chunk_count):
-    """Save document metadata to SQLite database"""
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Create documents table if it doesn't exist
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS documents (
-                    id TEXT PRIMARY KEY,
-                    filename TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    file_type TEXT NOT NULL,
-                    chunk_count INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Insert document
-            cursor.execute('''
-                INSERT OR REPLACE INTO documents (id, filename, content, file_type, chunk_count)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (doc_id, filename, content, file_type, chunk_count))
-            
-            conn.commit()
-            
-    except Exception as e:
-        print(f"❌ Error saving document to database: {e}")
-
-def load_existing_documents():
-    """Load existing documents from database into vector store"""
-    if not vector_db_initialized:
-        return
-        
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Check if documents table exists
-            cursor.execute('''
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='documents'
-            ''')
-            
-            if not cursor.fetchone():
-                return  # Table doesn't exist yet
-            
-            # Load all documents
-            cursor.execute('SELECT id, filename, content, file_type FROM documents')
-            documents = cursor.fetchall()
-            
-            for doc in documents:
-                doc_id, filename, content, file_type = doc
-                
-                # Re-chunk and add to vector database
-                chunks = chunk_text(content)
-                
-                if chunks:
-                    embeddings = sentence_model.encode(chunks)
-                    
-                    # Store document metadata
-                    document_store[doc_id] = {
-                        'filename': filename,
-                        'file_type': file_type,
-                        'total_chunks': len(chunks),
-                        'created_at': datetime.now().isoformat()
-                    }
-                    
-                    # Add chunks to vector database
-                    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                        chunk_id = f"{doc_id}_chunk_{i}"
-                        
-                        chunk_store[chunk_id] = {
-                            'content': chunk,
-                            'doc_id': doc_id,
-                            'filename': filename,
-                            'chunk_index': i,
-                            'file_type': file_type
-                        }
-                        
-                        vector_db.add(embedding.reshape(1, -1))
-            
-            print(f"✅ Loaded {len(documents)} existing documents into vector database")
-            
-    except Exception as e:
-        print(f"❌ Error loading existing documents: {e}")
-
-def get_rag_context(user_message, max_context_length=2000):
-    """Get relevant context from vector database for RAG"""
+def get_rag_context(query, max_context_length=2000):
+    """Get relevant context for RAG-enhanced responses"""
     if not vector_db_initialized:
         return ""
-    
-    try:
-        # Search for relevant content
-        similar_content = search_similar_content(user_message, k=3, similarity_threshold=0.4)
-        
-        if not similar_content:
-            return ""
-        
-        # Build context from similar content
-        context_parts = []
-        current_length = 0
-        
-        for content in similar_content:
-            content_text = f"From {content['filename']} (similarity: {content['similarity_score']:.2f}):\n{content['content']}\n"
-            
-            if current_length + len(content_text) > max_context_length:
-                break
-                
-            context_parts.append(content_text)
-            current_length += len(content_text)
-        
-        if context_parts:
-            rag_context = "=== RELEVANT CONTEXT FROM UPLOADED DOCUMENTS ===\n\n"
-            rag_context += "\n---\n\n".join(context_parts)
-            rag_context += "\n=== END CONTEXT ===\n"
-            return rag_context
-        
+
+    # Perform semantic search
+    search_results = semantic_search(query, top_k=3)
+
+    if not search_results:
         return ""
-        
-    except Exception as e:
-        print(f"❌ Error getting RAG context: {e}")
-        return ""
+
+    # Build context from search results
+    context_parts = []
+    current_length = 0
+
+    context_parts.append("=== RELEVANT CONTEXT FROM UPLOADED DOCUMENTS ===\n")
+
+    for result in search_results:
+        result_text = f"**From {result['filename']} ({result['chunk_info']}):**\n{result['content']}\n"
+
+        if current_length + len(result_text) > max_context_length:
+            break
+
+        context_parts.append(result_text)
+        current_length += len(result_text)
+
+    context_parts.append("=== END CONTEXT ===\n")
+
+    return "\n".join(context_parts)
 
 # Vector database will be initialized in background thread
 
@@ -674,9 +572,9 @@ def process_jupyter_notebook(notebook_content):
     """Process Jupyter notebook and extract code, markdown, and outputs"""
     try:
         notebook = json.loads(notebook_content)
-        
+
         processed_content = "=== JUPYTER NOTEBOOK ANALYSIS ===\n\n"
-        
+
         # Extract metadata
         if 'metadata' in notebook:
             metadata = notebook['metadata']
@@ -686,22 +584,22 @@ def process_jupyter_notebook(notebook_content):
             if 'language_info' in metadata:
                 lang_info = metadata['language_info']
                 processed_content += f"**Language:** {lang_info.get('name', 'Unknown')} v{lang_info.get('version', 'Unknown')}\n"
-        
+
         processed_content += f"**Total Cells:** {len(notebook.get('cells', []))}\n\n"
-        
+
         # Process cells
         code_cells = 0
         markdown_cells = 0
-        
+
         for i, cell in enumerate(notebook.get('cells', []), 1):
             cell_type = cell.get('cell_type', 'unknown')
             source = ''.join(cell.get('source', []))
-            
+
             if cell_type == 'code':
                 code_cells += 1
                 if source.strip():
                     processed_content += f"### Code Cell {i}\n```python\n{source}\n```\n"
-                    
+
                     # Include outputs if present
                     outputs = cell.get('outputs', [])
                     if outputs:
@@ -716,16 +614,16 @@ def process_jupyter_notebook(notebook_content):
                                     result_text = ''.join(data['text/plain'])
                                     processed_content += f"```\n{result_text}\n```\n"
                     processed_content += "\n"
-            
+
             elif cell_type == 'markdown':
                 markdown_cells += 1
                 if source.strip():
                     processed_content += f"### Markdown Cell {i}\n{source}\n\n"
-        
+
         processed_content += f"\n**Summary:** {code_cells} code cells, {markdown_cells} markdown cells\n"
-        
+
         return processed_content
-        
+
     except Exception as e:
         return f"[Jupyter notebook processing error: {str(e)}]"
 
@@ -734,17 +632,17 @@ def process_archive_file(file_path, filename):
     try:
         file_extension = os.path.splitext(filename)[1].lower()
         second_ext = os.path.splitext(os.path.splitext(filename)[0])[1].lower()
-        
+
         processed_content = f"=== ARCHIVE ANALYSIS: {filename} ===\n\n"
-        
+
         files_list = []
         total_files = 0
-        
+
         if file_extension == '.zip':
             with zipfile.ZipFile(file_path, 'r') as zip_ref:
                 file_list = zip_ref.namelist()
                 total_files = len(file_list)
-                
+
                 for file_name in file_list[:20]:  # Limit to first 20 files
                     file_info = zip_ref.getinfo(file_name)
                     files_list.append({
@@ -753,26 +651,26 @@ def process_archive_file(file_path, filename):
                         'is_dir': file_name.endswith('/'),
                         'compressed_size': file_info.compress_size
                     })
-                    
+
                 # Try to extract and preview small text files
                 for file_name in file_list[:5]:  # Preview first 5 files
                     if (not file_name.endswith('/') and 
                         any(file_name.lower().endswith(ext) for ext in ['.py', '.js', '.txt', '.md', '.json', '.yaml', '.yml']) and
                         zip_ref.getinfo(file_name).file_size < 10000):  # Less than 10KB
-                        
+
                         try:
                             with zip_ref.open(file_name) as f:
                                 content = f.read().decode('utf-8')[:500]
                                 processed_content += f"\n### Preview: {file_name}\n```\n{content}{'...' if len(content) >= 500 else ''}\n```\n"
                         except:
                             continue
-        
+
         elif file_extension in ['.tar', '.tgz'] or second_ext == '.tar':
             mode = 'r:gz' if file_extension in ['.tgz'] or second_ext == '.tar' else 'r'
             with tarfile.open(file_path, mode) as tar_ref:
                 members = tar_ref.getmembers()
                 total_files = len(members)
-                
+
                 for member in members[:20]:  # Limit to first 20 files
                     files_list.append({
                         'name': member.name,
@@ -780,13 +678,13 @@ def process_archive_file(file_path, filename):
                         'is_dir': member.isdir(),
                         'type': 'directory' if member.isdir() else 'file'
                     })
-                    
+
                 # Try to extract and preview small text files
                 for member in members[:5]:  # Preview first 5 files
                     if (member.isfile() and 
                         any(member.name.lower().endswith(ext) for ext in ['.py', '.js', '.txt', '.md', '.json', '.yaml', '.yml']) and
                         member.size < 10000):  # Less than 10KB
-                        
+
                         try:
                             f = tar_ref.extractfile(member)
                             if f:
@@ -794,23 +692,23 @@ def process_archive_file(file_path, filename):
                                 processed_content += f"\n### Preview: {member.name}\n```\n{content}{'...' if len(content) >= 500 else ''}\n```\n"
                         except:
                             continue
-        
+
         # Build file list summary
         processed_content += f"**Total Files:** {total_files}\n"
         processed_content += f"**Showing:** {min(len(files_list), 20)} files\n\n"
-        
+
         processed_content += "**File Structure:**\n```\n"
         for file_info in files_list:
             size_str = f" ({file_info['size']} bytes)" if not file_info.get('is_dir', False) else " (directory)"
             processed_content += f"{file_info['name']}{size_str}\n"
-        
+
         if total_files > 20:
             processed_content += f"... and {total_files - 20} more files\n"
-        
+
         processed_content += "```\n"
-        
+
         return processed_content
-        
+
     except Exception as e:
         return f"[Archive processing error: {str(e)}]"
 
@@ -939,9 +837,7 @@ def process_uploaded_file(file_path):
 
         # Add to vector database for semantic search
         if vector_db_initialized:
-            success = add_document_to_vector_db(content, filename, file_extension)
-            if success:
-                print(f"✅ Document '{filename}' added to vector database for semantic search")
+            add_document_to_vector_db(content, filename, file_extension)
 
         return content
 
@@ -973,7 +869,7 @@ def index():
     # Fast path for health checks and deployment probes
     accept_header = request.headers.get('Accept', '')
     user_agent = request.headers.get('User-Agent', '').lower()
-    
+
     # Return JSON for non-browser requests (health checks, deployment probes)
     if ('health' in user_agent or 'ping' in user_agent or 
         not accept_header.startswith('text/html') or
@@ -986,7 +882,7 @@ def index():
             session['chat_history'] = []
         if 'assistant_mode' not in session:
             session['assistant_mode'] = 'general'
-        
+
         # Get session ID but don't block on database operations
         session_id = get_session_id()
         session.modified = True
@@ -1053,12 +949,13 @@ def chat():
         if context_summary:
             messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
 
-        # Add RAG context using semantic search
+        # Add RAG context if vector database is available
         rag_context = get_rag_context(user_message)
         if rag_context:
             messages.append({"role": "system", "content": rag_context})
+
+        # Add uploaded files context (fallback if no vector DB)
         elif 'uploaded_files' in session and session['uploaded_files']:
-            # Fallback to basic file context if RAG is not available
             files_context = "Uploaded files context:\n"
             for filename, content in session['uploaded_files'].items():
                 files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
@@ -1143,12 +1040,13 @@ def chat_stream():
                 if context_summary:
                     messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
 
-                # Add RAG context using semantic search
+                # Add RAG context if vector database is available
                 rag_context = get_rag_context(user_message)
                 if rag_context:
                     messages.append({"role": "system", "content": rag_context})
+
+                # Add uploaded files context (fallback if no vector DB)
                 elif uploaded_files:
-                    # Fallback to basic file context if RAG is not available
                     files_context = "Uploaded files context:\n"
                     for filename, content in uploaded_files.items():
                         files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
@@ -1260,7 +1158,7 @@ def upload_file():
             notebook_files = ['ipynb']
             archive_files = ['zip', 'tar', 'tar.gz', 'tgz']
             image_files = ['png', 'jpg', 'jpeg', 'gif']
-            
+
             error_msg = 'File type not allowed. Supported types:\n'
             error_msg += f'• Code: {", ".join(code_files)}\n'
             error_msg += f'• Documents: {", ".join(document_files)}\n'
@@ -1268,7 +1166,7 @@ def upload_file():
             error_msg += f'• Archives: {", ".join(archive_files)}\n'
             error_msg += f'• Config: {", ".join(config_files)}\n'
             error_msg += f'• Images: {", ".join(image_files)}'
-            
+
             return jsonify({'error': error_msg}), 400
 
     except Exception as e:
@@ -1530,23 +1428,23 @@ def search_documents():
     try:
         data = request.get_json()
         query = data.get('query', '').strip()
-        
+
         if not query:
             return jsonify({'error': 'Query cannot be empty'}), 400
-        
+
         if not vector_db_initialized:
             return jsonify({'error': 'Vector database not initialized'}), 500
-        
+
         # Search for similar content
-        results = search_similar_content(query, k=10, similarity_threshold=0.2)
-        
+        results = semantic_search(query, k=10, similarity_threshold=0.2)
+
         return jsonify({
             'success': True,
             'query': query,
             'results': results,
             'total_results': len(results)
         })
-        
+
     except Exception as e:
         return jsonify({'error': f'Search error: {str(e)}'}), 500
 
@@ -1559,11 +1457,11 @@ def vector_db_stats():
                 'initialized': False,
                 'error': 'Vector database not initialized'
             })
-        
+
         # Count documents and chunks
         document_count = len(document_store)
         chunk_count = len(chunk_store)
-        
+
         # Get document details
         document_details = []
         for doc_id, doc_info in document_store.items():
@@ -1574,7 +1472,7 @@ def vector_db_stats():
                 'chunk_count': doc_info['total_chunks'],
                 'created_at': doc_info['created_at']
             })
-        
+
         return jsonify({
             'initialized': True,
             'document_count': document_count,
@@ -1583,7 +1481,7 @@ def vector_db_stats():
             'model_name': 'all-MiniLM-L6-v2',
             'documents': document_details
         })
-        
+
     except Exception as e:
         return jsonify({'error': f'Stats error: {str(e)}'}), 500
 
@@ -1592,29 +1490,29 @@ def clear_vector_db():
     """Clear all documents from vector database"""
     try:
         global vector_db, document_store, chunk_store
-        
+
         if not vector_db_initialized:
             return jsonify({'error': 'Vector database not initialized'}), 500
-        
+
         # Clear in-memory stores
         document_store.clear()
         chunk_store.clear()
-        
+
         # Recreate empty FAISS index
         if HAS_VECTOR_SUPPORT and faiss:
             vector_db = faiss.IndexFlatIP(384)
-        
+
         # Clear documents from database
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM documents')
             conn.commit()
-        
+
         return jsonify({
             'success': True,
             'message': 'Vector database cleared successfully'
         })
-        
+
     except Exception as e:
         return jsonify({'error': f'Clear error: {str(e)}'}), 500
 
@@ -1722,11 +1620,11 @@ def dashboard_metrics():
                 ORDER BY count DESC
             ''')
             mode_rows = cursor.fetchall()
-            
+
             mode_distribution = {}
             total_mode_messages = sum(row['count'] for row in mode_rows)
             most_used_mode = 'General'
-            
+
             if mode_rows:
                 most_used_mode = ASSISTANT_MODES.get(mode_rows[0]['mode'], {'name': 'General'})['name']
                 for row in mode_rows:
@@ -1745,11 +1643,11 @@ def dashboard_metrics():
                 ORDER BY hour
             ''')
             volume_rows = cursor.fetchall()
-            
+
             # Create 24-hour timeline
             hours = [f"{i:02d}:00" for i in range(24)]
             volume_data = [0] * 24
-            
+
             for row in volume_rows:
                 hour_index = int(row['hour'])
                 volume_data[hour_index] = row['count']
@@ -1774,7 +1672,7 @@ def dashboard_metrics():
                 LIMIT 10
             ''')
             activity_rows = cursor.fetchall()
-            
+
             activity = []
             for row in activity_rows:
                 activity.append({
@@ -1795,7 +1693,7 @@ def dashboard_metrics():
                 LIMIT 5
             ''')
             session_rows = cursor.fetchall()
-            
+
             for row in session_rows:
                 activity.append({
                     'type': row['type'],
@@ -1862,7 +1760,7 @@ def dashboard_export():
                 GROUP BY cs.session_id
                 ORDER BY cs.created_at DESC
             ''')
-            
+
             sessions = []
             for row in cursor.fetchall():
                 sessions.append({
@@ -2002,7 +1900,7 @@ if __name__ == '__main__':
     # Production configuration for deployment
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
-    
+
     # Try different ports if default is occupied
     import socket
     for attempt_port in [port, 5001, 5002, 5003]:
@@ -2013,6 +1911,6 @@ if __name__ == '__main__':
                 break
         except OSError:
             continue
-    
+
     print(f"🚀 Starting Flask app on port {port} (debug: {debug_mode})")
     app.run(host='0.0.0.0', port=port, debug=debug_mode, threaded=True)
