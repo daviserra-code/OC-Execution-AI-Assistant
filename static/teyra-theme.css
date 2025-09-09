@@ -323,6 +323,15 @@ body {
   animation: pulse 1.4s ease-in-out infinite !important;
 }
 
+/* Aurora animated section bar */
+.aurora-bar {
+  height: 2px;
+  background: linear-gradient(90deg, var(--acc-1), var(--acc-3));
+  opacity: 0.8;
+  border-radius: 2px;
+  animation: aurora 3s ease-in-out infinite;
+}
+
 .mode-btn.active, .control-btn:hover, .send-btn:hover {
   animation: aurora 3s ease-in-out infinite !important;
 }
