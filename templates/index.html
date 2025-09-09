@@ -1373,12 +1373,14 @@
 
         function showStreamingIndicator() {
             document.getElementById('streamingIndicator').style.display = 'inline-block';
+            document.querySelector('.logo svg').classList.add('thinking');
         }
 
         function hideStreamingIndicator() {
             isLoading = false;
             document.getElementById('streamingIndicator').style.display = 'none';
             document.getElementById('sendBtn').disabled = false;
+            document.querySelector('.logo svg').classList.remove('thinking');
         }
 
         function scrollToBottom() {

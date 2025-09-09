@@ -312,6 +312,17 @@ body {
   75% { filter: hue-rotate(270deg) brightness(1.1); }
 }
 
+/* Thinking pulse animation for logo */
+@keyframes pulse {
+  0% { filter: drop-shadow(0 0 0 rgba(110,231,255,0)); }
+  50% { filter: drop-shadow(0 0 12px rgba(110,231,255,.35)); }
+  100% { filter: drop-shadow(0 0 0 rgba(110,231,255,0)); }
+}
+
+.thinking {
+  animation: pulse 1.4s ease-in-out infinite !important;
+}
+
 .mode-btn.active, .control-btn:hover, .send-btn:hover {
   animation: aurora 3s ease-in-out infinite !important;
 }
