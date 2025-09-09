@@ -1162,6 +1162,209 @@ def reset_system_prompt():
         print(f"❌ Error resetting system prompt: {e}")
         return jsonify({'error': f'Error resetting system prompt: {str(e)}'}), 500
 
+@app.route('/dashboard')
+def dashboard():
+    """Render the monitoring dashboard"""
+    return render_template('dashboard.html')
+
+@app.route('/dashboard/metrics')
+def dashboard_metrics():
+    """Get real-time dashboard metrics"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Basic metrics
+            cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
+            total_sessions = cursor.fetchone()['count']
+
+            cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
+            total_messages = cursor.fetchone()['count']
+
+            # Active sessions (last 24 hours)
+            cursor.execute('''
+                SELECT COUNT(DISTINCT session_id) as count 
+                FROM chat_exchanges 
+                WHERE timestamp > datetime('now', '-1 day')
+            ''')
+            active_sessions = cursor.fetchone()['count']
+
+            # Mode distribution
+            cursor.execute('''
+                SELECT mode, COUNT(*) as count
+                FROM chat_exchanges
+                WHERE mode IS NOT NULL
+                GROUP BY mode
+                ORDER BY count DESC
+            ''')
+            mode_rows = cursor.fetchall()
+            
+            mode_distribution = {}
+            total_mode_messages = sum(row['count'] for row in mode_rows)
+            most_used_mode = 'General'
+            
+            if mode_rows:
+                most_used_mode = ASSISTANT_MODES.get(mode_rows[0]['mode'], {'name': 'General'})['name']
+                for row in mode_rows:
+                    mode_name = ASSISTANT_MODES.get(row['mode'], {'name': row['mode']})['name']
+                    percentage = round((row['count'] / total_mode_messages) * 100, 1)
+                    mode_distribution[mode_name] = percentage
+
+            # Message volume by hour (last 24 hours)
+            cursor.execute('''
+                SELECT 
+                    strftime('%H', timestamp) as hour,
+                    COUNT(*) as count
+                FROM chat_exchanges 
+                WHERE timestamp > datetime('now', '-1 day')
+                GROUP BY hour
+                ORDER BY hour
+            ''')
+            volume_rows = cursor.fetchall()
+            
+            # Create 24-hour timeline
+            hours = [f"{i:02d}:00" for i in range(24)]
+            volume_data = [0] * 24
+            
+            for row in volume_rows:
+                hour_index = int(row['hour'])
+                volume_data[hour_index] = row['count']
+
+            # Files processed count (estimate from session data)
+            cursor.execute('''
+                SELECT COUNT(*) as count 
+                FROM chat_exchanges 
+                WHERE user_message LIKE '%uploaded%' OR user_message LIKE '%file%'
+            ''')
+            files_processed = cursor.fetchone()['count']
+
+            # Recent activity
+            cursor.execute('''
+                SELECT 
+                    'chat' as type,
+                    'New message in ' || COALESCE(mode, 'general') || ' mode' as message,
+                    timestamp
+                FROM chat_exchanges
+                WHERE timestamp > datetime('now', '-1 hour')
+                ORDER BY timestamp DESC
+                LIMIT 10
+            ''')
+            activity_rows = cursor.fetchall()
+            
+            activity = []
+            for row in activity_rows:
+                activity.append({
+                    'type': row['type'],
+                    'message': row['message'],
+                    'timestamp': row['timestamp']
+                })
+
+            # Add session creation activity
+            cursor.execute('''
+                SELECT 
+                    'session' as type,
+                    'New session created' as message,
+                    created_at as timestamp
+                FROM chat_sessions
+                WHERE created_at > datetime('now', '-1 hour')
+                ORDER BY created_at DESC
+                LIMIT 5
+            ''')
+            session_rows = cursor.fetchall()
+            
+            for row in session_rows:
+                activity.append({
+                    'type': row['type'],
+                    'message': row['message'],
+                    'timestamp': row['timestamp']
+                })
+
+            # Sort activity by timestamp
+            activity.sort(key=lambda x: x['timestamp'], reverse=True)
+            activity = activity[:20]  # Keep top 20
+
+            metrics = {
+                'total_sessions': total_sessions,
+                'total_messages': total_messages,
+                'active_sessions': active_sessions,
+                'avg_response_time': '1.2s',  # Placeholder - could be calculated from logs
+                'most_used_mode': most_used_mode,
+                'files_processed': files_processed,
+                'mode_distribution': mode_distribution
+            }
+
+            charts = {
+                'message_volume': {
+                    'labels': hours,
+                    'data': volume_data
+                },
+                'mode_usage': {
+                    'labels': list(mode_distribution.keys()),
+                    'data': list(mode_distribution.values())
+                }
+            }
+
+            return jsonify({
+                'metrics': metrics,
+                'charts': charts,
+                'activity': activity
+            })
+
+    except Exception as e:
+        print(f"❌ Error getting dashboard metrics: {e}")
+        return jsonify({'error': f'Error getting metrics: {str(e)}'}), 500
+
+@app.route('/dashboard/export')
+def dashboard_export():
+    """Export dashboard metrics as JSON"""
+    try:
+        # Get comprehensive metrics
+        metrics_response = dashboard_metrics()
+        metrics_data = metrics_response.get_json()
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Add detailed session data
+            cursor.execute('''
+                SELECT 
+                    cs.session_id,
+                    cs.created_at,
+                    cs.last_activity,
+                    COUNT(ce.id) as message_count,
+                    GROUP_CONCAT(DISTINCT ce.mode) as modes_used
+                FROM chat_sessions cs
+                LEFT JOIN chat_exchanges ce ON cs.session_id = ce.session_id
+                GROUP BY cs.session_id
+                ORDER BY cs.created_at DESC
+            ''')
+            
+            sessions = []
+            for row in cursor.fetchall():
+                sessions.append({
+                    'session_id': row['session_id'],
+                    'created_at': row['created_at'],
+                    'last_activity': row['last_activity'],
+                    'message_count': row['message_count'],
+                    'modes_used': row['modes_used'].split(',') if row['modes_used'] else []
+                })
+
+        export_data = {
+            'export_timestamp': datetime.now().isoformat(),
+            'summary': metrics_data,
+            'detailed_sessions': sessions,
+            'metadata': {
+                'application': 'Teyra Architecture Assistant',
+                'version': '2.0',
+                'export_type': 'dashboard_metrics'
+            }
+        }
+
+        return jsonify(export_data)
+
+    except Exception as e:
+        return jsonify({'error': f'Export error: {str(e)}'}), 500
+
 @app.route('/templates/<template_type>')
 def get_template(template_type):
     """Provide quick templates for common tasks"""
