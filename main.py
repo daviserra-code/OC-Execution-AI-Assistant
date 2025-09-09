@@ -20,6 +20,8 @@ try:
     HAS_VECTOR_SUPPORT = True
 except ImportError:
     HAS_VECTOR_SUPPORT = False
+    SentenceTransformer = None
+    faiss = None
     print("⚠️  Vector database support not available. Install sentence-transformers and faiss-cpu for enhanced AI capabilities.")
 
 import ast
@@ -30,6 +32,8 @@ try:
     HAS_DOC_SUPPORT = True
 except ImportError:
     HAS_DOC_SUPPORT = False
+    PyPDF2 = None
+    docx = None
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
@@ -393,7 +397,7 @@ sentence_model = None
 def initialize_vector_db():
     """Initialize vector database for RAG capabilities"""
     global vector_db, sentence_model
-    if HAS_VECTOR_SUPPORT:
+    if HAS_VECTOR_SUPPORT and SentenceTransformer and faiss:
         try:
             sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
             vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
@@ -459,7 +463,7 @@ def process_uploaded_file(file_path):
         content = ""
 
         # Handle different file types
-        if file_extension == '.pdf' and HAS_DOC_SUPPORT:
+        if file_extension == '.pdf' and HAS_DOC_SUPPORT and PyPDF2:
             try:
                 with open(file_path, 'rb') as f:
                     pdf_reader = PyPDF2.PdfReader(f)
@@ -469,7 +473,7 @@ def process_uploaded_file(file_path):
             except Exception as e:
                 content = f"[PDF processing error: {str(e)}]"
 
-        elif file_extension in ['.docx', '.doc'] and HAS_DOC_SUPPORT:
+        elif file_extension in ['.docx', '.doc'] and HAS_DOC_SUPPORT and docx:
             try:
                 doc = docx.Document(file_path)
                 content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
@@ -489,11 +493,12 @@ def process_uploaded_file(file_path):
                     return f"[Binary file - could not read: {str(e)}]"
 
         # Enhanced processing for code files
+        code_analysis = None
         if file_extension in ['.py', '.js', '.cs', '.java', '.cpp', '.c', '.h']:
             code_analysis = analyze_code_structure(content, file_extension)
 
             # Add analysis summary to content
-            if 'error' not in code_analysis:
+            if code_analysis and 'error' not in code_analysis:
                 analysis_summary = f"\n\n--- CODE ANALYSIS ---\n"
                 analysis_summary += f"File: {filename}\n"
                 analysis_summary += f"Lines: {code_analysis['line_count']}\n"
