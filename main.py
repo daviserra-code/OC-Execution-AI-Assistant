@@ -206,13 +206,13 @@ def init_app_background():
     
     # Initialize vector database in background
     if HAS_VECTOR_SUPPORT:
-        initialize_vector_db()
+        try:
+            initialize_vector_db()
+        except NameError:
+            print("⚠️  Vector database initialization deferred - function not yet defined")
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
-
-# Start background initialization
-threading.Thread(target=init_app_background, daemon=True).start()
 
 # Response cache for similar questions
 response_cache = {}
@@ -424,6 +424,11 @@ def initialize_vector_db():
         return False
 
 # Vector database will be initialized in background thread
+
+# Start background initialization after all functions are defined
+if not openai.api_key:
+    pass  # Already warned above
+threading.Thread(target=init_app_background, daemon=True).start()
 
 def analyze_code_structure(code_content, file_extension):
     """Analyze code structure and extract meaningful information"""
