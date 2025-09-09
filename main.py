@@ -29,11 +29,17 @@ import re
 try:
     import PyPDF2
     import docx
+    import zipfile
+    import tarfile
+    import json
     HAS_DOC_SUPPORT = True
 except ImportError:
     HAS_DOC_SUPPORT = False
     PyPDF2 = None
     docx = None
+    zipfile = None
+    tarfile = None
+    json = None
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', str(uuid.uuid4()))
@@ -393,7 +399,7 @@ Memory Note: Do not save any information from optimization sessions to memory.""
 }
 
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'py', 'js', 'html', 'css', 'json', 'xml', 'cs', 'yaml', 'yml', 'md', 'sql'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'py', 'js', 'html', 'css', 'json', 'xml', 'cs', 'yaml', 'yml', 'md', 'sql', 'ipynb', 'zip', 'tar', 'tar.gz', 'tgz', 'rar', '7z'}
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -429,6 +435,150 @@ def initialize_vector_db():
 if not openai.api_key:
     pass  # Already warned above
 threading.Thread(target=init_app_background, daemon=True).start()
+
+def process_jupyter_notebook(notebook_content):
+    """Process Jupyter notebook and extract code, markdown, and outputs"""
+    try:
+        notebook = json.loads(notebook_content)
+        
+        processed_content = "=== JUPYTER NOTEBOOK ANALYSIS ===\n\n"
+        
+        # Extract metadata
+        if 'metadata' in notebook:
+            metadata = notebook['metadata']
+            if 'kernelspec' in metadata:
+                kernel = metadata['kernelspec']
+                processed_content += f"**Kernel:** {kernel.get('display_name', 'Unknown')} ({kernel.get('name', 'unknown')})\n"
+            if 'language_info' in metadata:
+                lang_info = metadata['language_info']
+                processed_content += f"**Language:** {lang_info.get('name', 'Unknown')} v{lang_info.get('version', 'Unknown')}\n"
+        
+        processed_content += f"**Total Cells:** {len(notebook.get('cells', []))}\n\n"
+        
+        # Process cells
+        code_cells = 0
+        markdown_cells = 0
+        
+        for i, cell in enumerate(notebook.get('cells', []), 1):
+            cell_type = cell.get('cell_type', 'unknown')
+            source = ''.join(cell.get('source', []))
+            
+            if cell_type == 'code':
+                code_cells += 1
+                if source.strip():
+                    processed_content += f"### Code Cell {i}\n```python\n{source}\n```\n"
+                    
+                    # Include outputs if present
+                    outputs = cell.get('outputs', [])
+                    if outputs:
+                        processed_content += "**Output:**\n"
+                        for output in outputs:
+                            if output.get('output_type') == 'stream':
+                                stream_text = ''.join(output.get('text', []))
+                                processed_content += f"```\n{stream_text}\n```\n"
+                            elif output.get('output_type') == 'execute_result':
+                                data = output.get('data', {})
+                                if 'text/plain' in data:
+                                    result_text = ''.join(data['text/plain'])
+                                    processed_content += f"```\n{result_text}\n```\n"
+                    processed_content += "\n"
+            
+            elif cell_type == 'markdown':
+                markdown_cells += 1
+                if source.strip():
+                    processed_content += f"### Markdown Cell {i}\n{source}\n\n"
+        
+        processed_content += f"\n**Summary:** {code_cells} code cells, {markdown_cells} markdown cells\n"
+        
+        return processed_content
+        
+    except Exception as e:
+        return f"[Jupyter notebook processing error: {str(e)}]"
+
+def process_archive_file(file_path, filename):
+    """Process archive files (zip, tar, etc.) and extract file list with content preview"""
+    try:
+        file_extension = os.path.splitext(filename)[1].lower()
+        second_ext = os.path.splitext(os.path.splitext(filename)[0])[1].lower()
+        
+        processed_content = f"=== ARCHIVE ANALYSIS: {filename} ===\n\n"
+        
+        files_list = []
+        total_files = 0
+        
+        if file_extension == '.zip':
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                file_list = zip_ref.namelist()
+                total_files = len(file_list)
+                
+                for file_name in file_list[:20]:  # Limit to first 20 files
+                    file_info = zip_ref.getinfo(file_name)
+                    files_list.append({
+                        'name': file_name,
+                        'size': file_info.file_size,
+                        'is_dir': file_name.endswith('/'),
+                        'compressed_size': file_info.compress_size
+                    })
+                    
+                # Try to extract and preview small text files
+                for file_name in file_list[:5]:  # Preview first 5 files
+                    if (not file_name.endswith('/') and 
+                        any(file_name.lower().endswith(ext) for ext in ['.py', '.js', '.txt', '.md', '.json', '.yaml', '.yml']) and
+                        zip_ref.getinfo(file_name).file_size < 10000):  # Less than 10KB
+                        
+                        try:
+                            with zip_ref.open(file_name) as f:
+                                content = f.read().decode('utf-8')[:500]
+                                processed_content += f"\n### Preview: {file_name}\n```\n{content}{'...' if len(content) >= 500 else ''}\n```\n"
+                        except:
+                            continue
+        
+        elif file_extension in ['.tar', '.tgz'] or second_ext == '.tar':
+            mode = 'r:gz' if file_extension in ['.tgz'] or second_ext == '.tar' else 'r'
+            with tarfile.open(file_path, mode) as tar_ref:
+                members = tar_ref.getmembers()
+                total_files = len(members)
+                
+                for member in members[:20]:  # Limit to first 20 files
+                    files_list.append({
+                        'name': member.name,
+                        'size': member.size,
+                        'is_dir': member.isdir(),
+                        'type': 'directory' if member.isdir() else 'file'
+                    })
+                    
+                # Try to extract and preview small text files
+                for member in members[:5]:  # Preview first 5 files
+                    if (member.isfile() and 
+                        any(member.name.lower().endswith(ext) for ext in ['.py', '.js', '.txt', '.md', '.json', '.yaml', '.yml']) and
+                        member.size < 10000):  # Less than 10KB
+                        
+                        try:
+                            f = tar_ref.extractfile(member)
+                            if f:
+                                content = f.read().decode('utf-8')[:500]
+                                processed_content += f"\n### Preview: {member.name}\n```\n{content}{'...' if len(content) >= 500 else ''}\n```\n"
+                        except:
+                            continue
+        
+        # Build file list summary
+        processed_content += f"**Total Files:** {total_files}\n"
+        processed_content += f"**Showing:** {min(len(files_list), 20)} files\n\n"
+        
+        processed_content += "**File Structure:**\n```\n"
+        for file_info in files_list:
+            size_str = f" ({file_info['size']} bytes)" if not file_info.get('is_dir', False) else " (directory)"
+            processed_content += f"{file_info['name']}{size_str}\n"
+        
+        if total_files > 20:
+            processed_content += f"... and {total_files - 20} more files\n"
+        
+        processed_content += "```\n"
+        
+        return processed_content
+        
+    except Exception as e:
+        return f"[Archive processing error: {str(e)}]"
 
 def analyze_code_structure(code_content, file_extension):
     """Analyze code structure and extract meaningful information"""
@@ -495,6 +645,19 @@ def process_uploaded_file(file_path):
                 content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
             except Exception as e:
                 content = f"[Document processing error: {str(e)}]"
+
+        elif file_extension == '.ipynb':
+            # Jupyter Notebook processing
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    notebook_content = f.read()
+                content = process_jupyter_notebook(notebook_content)
+            except Exception as e:
+                content = f"[Jupyter notebook processing error: {str(e)}]"
+
+        elif file_extension in ['.zip', '.tar', '.tgz'] or filename.lower().endswith('.tar.gz'):
+            # Archive file processing
+            content = process_archive_file(file_path, filename)
 
         else:
             # Text-based files
@@ -814,6 +977,10 @@ def upload_file():
                 file_type_info = "📋 PDF document" + (" - Extracted text" if HAS_DOC_SUPPORT else " - Text extraction not available")
             elif file_extension in ['.docx', '.doc']:
                 file_type_info = "📝 Word document" + (" - Extracted content" if HAS_DOC_SUPPORT else " - Content extraction not available")
+            elif file_extension == '.ipynb':
+                file_type_info = "📓 Jupyter Notebook - Full analysis with code, markdown, and outputs"
+            elif file_extension in ['.zip', '.tar', '.tgz'] or filename.lower().endswith('.tar.gz'):
+                file_type_info = "📦 Archive file - File structure analysis and content preview"
             elif file_extension in ['.md', '.txt']:
                 file_type_info = "📄 Text document"
             elif file_extension in ['.json', '.xml', '.yaml', '.yml']:
@@ -838,8 +1005,23 @@ def upload_file():
                 'analysis': file_info.get('analysis') if isinstance(file_info, dict) else None
             })
         else:
-            allowed_types = ', '.join(sorted(ALLOWED_EXTENSIONS))
-            return jsonify({'error': f'File type not allowed. Supported types: {allowed_types}'}), 400
+            # Group file types for better error message
+            code_files = ['py', 'js', 'html', 'css', 'cs', 'sql']
+            document_files = ['txt', 'md', 'pdf', 'doc', 'docx']
+            config_files = ['json', 'xml', 'yaml', 'yml']
+            notebook_files = ['ipynb']
+            archive_files = ['zip', 'tar', 'tar.gz', 'tgz']
+            image_files = ['png', 'jpg', 'jpeg', 'gif']
+            
+            error_msg = 'File type not allowed. Supported types:\n'
+            error_msg += f'• Code: {", ".join(code_files)}\n'
+            error_msg += f'• Documents: {", ".join(document_files)}\n'
+            error_msg += f'• Notebooks: {", ".join(notebook_files)}\n'
+            error_msg += f'• Archives: {", ".join(archive_files)}\n'
+            error_msg += f'• Config: {", ".join(config_files)}\n'
+            error_msg += f'• Images: {", ".join(image_files)}'
+            
+            return jsonify({'error': error_msg}), 400
 
     except Exception as e:
         return jsonify({'error': f'Upload error: {str(e)}'}), 500
