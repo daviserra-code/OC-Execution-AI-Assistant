@@ -182,26 +182,35 @@ def clear_session_history(session_id):
         cursor.execute('DELETE FROM chat_exchanges WHERE session_id = ?', (session_id,))
         conn.commit()
 
-# Initialize database and vector database on startup
+# Initialize database on startup (lightweight)
 try:
     init_database()
     print("✅ Database initialized successfully")
-
-    # Test database connection
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
-        session_count = cursor.fetchone()['count']
-        cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
-        exchange_count = cursor.fetchone()['count']
-        print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
 except Exception as e:
     print(f"❌ Database initialization error: {e}")
+
+# Defer expensive operations to avoid blocking health checks
+def init_app_background():
+    """Initialize expensive operations in background"""
+    try:
+        # Test database connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) as count FROM chat_sessions')
+            session_count = cursor.fetchone()['count']
+            cursor.execute('SELECT COUNT(*) as count FROM chat_exchanges')
+            exchange_count = cursor.fetchone()['count']
+            print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
+    except Exception as e:
+        print(f"❌ Database stats error: {e}")
 
 # Vector database will be initialized on first use
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
+
+# Start background initialization
+threading.Thread(target=init_app_background, daemon=True).start()
 
 # Response cache for similar questions
 response_cache = {}
@@ -551,23 +560,28 @@ def summarize_context(chat_history):
 
 @app.route('/')
 def index():
-    session_id = get_session_id()
+    # For health checks, return immediately if it's a simple GET without session setup
+    user_agent = request.headers.get('User-Agent', '').lower()
+    if 'health' in user_agent or 'ping' in user_agent or not request.headers.get('Accept', '').startswith('text/html'):
+        return {'status': 'ok'}, 200
 
-    # Load persistent chat history and store in session
     try:
-        persistent_history = load_chat_history(session_id)
-        session['chat_history'] = persistent_history
-        print(f"Loaded {len(persistent_history)} chat exchanges for session {session_id[:8]}")
-    except Exception as e:
-        print(f"Error loading chat history: {e}")
+        session_id = get_session_id()
+
+        # Defer chat history loading to avoid blocking health checks
         persistent_history = []
-        session['chat_history'] = []
+        if 'chat_history' not in session:
+            session['chat_history'] = []
 
-    if 'assistant_mode' not in session:
-        session['assistant_mode'] = 'general'
-    session.modified = True
+        if 'assistant_mode' not in session:
+            session['assistant_mode'] = 'general'
+        session.modified = True
 
-    return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
+    except Exception as e:
+        print(f"Error in index route: {e}")
+        # Return a minimal response if there's an error
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -930,6 +944,11 @@ def get_history():
     except Exception as e:
         print(f"Error in get_history route: {e}")
         return jsonify({'error': f'Error retrieving chat history: {str(e)}', 'history': [], 'count': 0}), 200
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Dedicated health check endpoint for deployment"""
+    return {'status': 'healthy', 'timestamp': time.time()}, 200
 
 @app.route('/get_modes', methods=['GET'])
 def get_modes():
