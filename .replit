@@ -11,7 +11,7 @@ packages = ["freetype", "gdb", "lcms2", "libimagequant", "libjpeg", "libtiff", "
 language = "python3"
 
 [deployment]
-run = ["python"]
+run = ["sh", "-c", "python main.py"]
 deploymentTarget = "autoscale"
 
 [workflows]
