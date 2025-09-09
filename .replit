@@ -15,7 +15,7 @@ run = ["sh", "-c", "python main.py"]
 deploymentTarget = "autoscale"
 
 [workflows]
-runButton = "Project"
+runButton = "Start Flask Server"
 
 [[workflows.workflow]]
 name = "Architecture Assistant"
@@ -55,6 +55,15 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "Start Flask Server"
+author = 40913427
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
 
 [[ports]]
 localPort = 5000

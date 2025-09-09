@@ -804,15 +804,15 @@
             </div>
 
             <div class="controls">
+                <button class="control-btn primary" onclick="window.open('/dashboard', '_blank')" style="background: linear-gradient(135deg, #28a745, #20c997); margin-bottom: 12px;">
+                    <i class="fas fa-chart-line"></i> 📊 Dashboard
+                </button>
                 <button onclick="adminRequired('showPrompt')" class="control-btn primary">
                     <i class="fas fa-eye"></i> View System Prompt
                 </button>
                 <button class="control-btn secondary" onclick="exportConversation()">
-                                <i class="fas fa-download"></i> Export
-                            </button>
-                            <button class="control-btn primary" onclick="window.open('/dashboard', '_blank')">
-                                <i class="fas fa-chart-line"></i> Dashboard
-                            </button>
+                    <i class="fas fa-download"></i> Export
+                </button>
                 <button onclick="showChatHistory()" class="control-btn secondary">
                     <i class="fas fa-history"></i> View Chat History
                 </button>
