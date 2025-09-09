@@ -307,7 +307,7 @@ Specializations:
 Always ensure documentation is clear, well-structured, and appropriate for the target audience."""
     },
     "opcenter": {
-        "name": "Opcenter Expert",
+        "name": "MES/MOM Expert",
         "icon": "⚙️",
         "prompt": """You are an expert in Siemens Opcenter Execution platforms (Foundation, Process, Discrete) with deep knowledge of version 2401+ features.
 
