@@ -1,4 +1,3 @@
-
 /* teyra.theme.css */
 
 /* 1) Tokens */
@@ -330,6 +329,22 @@ body {
   opacity: 0.8;
   border-radius: 2px;
   animation: aurora 3s ease-in-out infinite;
+}
+
+/* Terminal styling for code and tool outputs */
+.terminal {
+  background: #0C131E;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  color: #CFE7FF;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+
+.terminal .prompt {
+  color: #6EE7FF;
 }
 
 .mode-btn.active, .control-btn:hover, .send-btn:hover {
