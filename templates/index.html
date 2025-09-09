@@ -886,6 +886,10 @@
                 <button onclick="exportConversation('markdown')" class="control-btn primary" style="margin: 5px;">
                     <i class="fab fa-markdown"></i> Markdown Format
                 </button>
+                <!-- Vector DB Stats Button -->
+                <button onclick="showVectorDbStats()" class="control-btn warning" style="margin: 5px;">
+                    <i class="fas fa-database"></i> Vector DB Status
+                </button>
             </div>
         </div>
     </div>
@@ -1637,15 +1641,6 @@ Your chat history is automatically saved to a local SQLite database and will per
             document.getElementById('adminLoginForm').reset();
         }
 
-        function showAdminLogin() {
-            document.getElementById('adminLoginPanel').style.display = 'block';
-        }
-
-        function hideAdminLogin() {
-            document.getElementById('adminLoginPanel').style.display = 'none';
-            document.getElementById('adminLoginForm').reset();
-        }
-
         function showSessionInfo() {
             fetch('/get_session_info')
             .then(response => response.json())
@@ -1928,6 +1923,210 @@ Your chat history is automatically saved to a local SQLite database and will per
                     }
                 });
             }
+        }
+
+        // Helper function to show a modal with custom content
+        function showModal(htmlContent) {
+            const modal = document.getElementById('customModal'); // Assuming a modal with id 'customModal' exists or create one
+            if (!modal) {
+                const newModal = document.createElement('div');
+                newModal.id = 'customModal';
+                newModal.className = 'modal';
+                newModal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3></h3>
+                            <span class="close" onclick="closeModal('customModal')">&times;</span>
+                        </div>
+                        <div class="modal-body" id="customModalBody"></div>
+                    </div>
+                `;
+                document.body.appendChild(newModal);
+            }
+            document.getElementById('customModalBody').innerHTML = htmlContent;
+            document.querySelector('#customModal .modal-header h3').textContent = 'Vector Database Status'; // Set modal title
+            document.getElementById('customModal').style.display = 'block';
+        }
+
+        function closeModal(modalId = 'customModal') {
+             const modal = document.getElementById(modalId);
+             if (modal) {
+                 modal.style.display = 'none';
+             }
+        }
+
+        function showVectorDbStats() {
+            fetch('/vector_db_stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Vector DB Error: ' + data.error);
+                        return;
+                    }
+
+                    // Define CSS variables for theming
+                    const cssVars = `
+                        --bg-0: #ffffff;
+                        --bg-1: #f8f9fa;
+                        --bg-2: #e9ecef;
+                        --text-1: #333;
+                        --text-2: #666;
+                        --acc-1: #667eea; /* Primary accent */
+                        --acc-2: #28a745; /* Success accent */
+                        --acc-3: #17a2b8; /* Info accent */
+                        --error: #dc3545; /* Error accent */
+                    `;
+
+                    let statsHtml = `
+                        <style>${cssVars}</style>
+                        <div style="max-width: 600px; margin: 0 auto; padding: 20px; background: var(--bg-1); border-radius: 12px; border: 1px solid var(--bg-2);">
+                            <h3 style="color: var(--acc-1); margin-bottom: 20px;">🔍 Vector Database Status</h3>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div style="background: var(--bg-2); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: var(--acc-3); font-size: 24px; font-weight: bold;">${data.document_count}</div>
+                                    <div style="color: var(--text-2); font-size: 12px;">Documents</div>
+                                </div>
+                                <div style="background: var(--bg-2); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: var(--acc-3); font-size: 24px; font-weight: bold;">${data.chunk_count}</div>
+                                    <div style="color: var(--text-2); font-size: 12px;">Chunks</div>
+                                </div>
+                                <div style="background: var(--bg-2); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <div style="color: var(--acc-3); font-size: 24px; font-weight: bold;">${data.vector_dimension}</div>
+                                    <div style="color: var(--text-2); font-size: 12px;">Dimensions</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <strong style="color: var(--text-1);">Model:</strong> 
+                                <span style="color: var(--text-2);">${data.model_name}</span>
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <input type="text" id="searchQuery" placeholder="Search uploaded documents..." 
+                                       style="width: 100%; padding: 10px; border: 1px solid var(--bg-2); border-radius: 6px; background: var(--bg-1); color: var(--text-1);">
+                                <button onclick="searchDocuments()" style="margin-top: 10px; padding: 8px 16px; background: var(--acc-1); color: var(--bg-0); border: none; border-radius: 6px; cursor: pointer;">
+                                    🔍 Search
+                                </button>
+                            </div>
+
+                            <div id="searchResults" style="margin-top: 15px;"></div>
+                    `;
+
+                    if (data.documents && data.documents.length > 0) {
+                        statsHtml += `
+                            <div style="margin-top: 20px;">
+                                <h4 style="color: var(--text-1); margin-bottom: 10px;">📚 Uploaded Documents:</h4>
+                                <div style="max-height: 200px; overflow-y: auto;">
+                        `;
+
+                        data.documents.forEach(doc => {
+                            const createdDate = new Date(doc.created_at).toLocaleDateString();
+                            statsHtml += `
+                                <div style="background: var(--bg-2); padding: 10px; margin-bottom: 8px; border-radius: 6px; border-left: 3px solid var(--acc-2);">
+                                    <div style="color: var(--text-1); font-weight: bold;">${doc.filename}</div>
+                                    <div style="color: var(--text-2); font-size: 12px;">
+                                        ${doc.chunk_count} chunks • ${doc.file_type} • ${createdDate}
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        statsHtml += `</div></div>`;
+                    }
+
+                    statsHtml += `
+                            <div style="margin-top: 20px; text-align: center;">
+                                <button onclick="clearVectorDb()" style="padding: 8px 16px; background: var(--error); color: white; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px;">
+                                    🗑️ Clear All
+                                </button>
+                                <button onclick="closeModal()" style="padding: 8px 16px; background: var(--bg-2); color: var(--text-1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer;">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    showModal(statsHtml);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error fetching vector database stats');
+                });
+        }
+
+        function searchDocuments() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const resultsDiv = document.getElementById('searchResults');
+
+            if (!query) {
+                resultsDiv.innerHTML = '<div style="color: var(--error);">Please enter a search query</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div style="color: var(--text-2);">🔍 Searching...</div>';
+
+            fetch('/search_documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        resultsDiv.innerHTML = `<div style="color: var(--error);">Error: ${data.error}</div>`;
+                        return;
+                    }
+
+                    if (data.results.length === 0) {
+                        resultsDiv.innerHTML = '<div style="color: var(--text-2);">No relevant results found</div>';
+                        return;
+                    }
+
+                    let resultsHtml = `<div style="margin-top: 15px;"><h5 style="color: var(--text-1);">Search Results (${data.total_results}):</h5>`;
+
+                    data.results.forEach((result, idx) => {
+                        const similarity = (result.similarity_score * 100).toFixed(1);
+                        resultsHtml += `
+                            <div style="background: var(--bg-2); padding: 12px; margin: 8px 0; border-radius: 6px; border-left: 3px solid var(--acc-3);">
+                                <div style="color: var(--text-1); font-weight: bold; margin-bottom: 5px;">
+                                    📄 ${result.filename} (${similarity}% match)
+                                </div>
+                                <div style="color: var(--text-2); font-size: 13px; line-height: 1.4;">
+                                    ${result.content.substring(0, 200)}${result.content.length > 200 ? '...' : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    resultsHtml += '</div>';
+                    resultsDiv.innerHTML = resultsHtml;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    resultsDiv.innerHTML = '<div style="color: var(--error);">Search error occurred</div>';
+                });
+        }
+
+        function clearVectorDb() {
+            if (!confirm('Are you sure you want to clear all documents from the vector database? This action cannot be undone.')) {
+                return;
+            }
+
+            fetch('/clear_vector_db', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    alert('✅ Vector database cleared successfully');
+                    closeModal();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error clearing vector database');
+                });
         }
     </script>
 </body>

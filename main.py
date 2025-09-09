@@ -407,10 +407,12 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Initialize vector database for enhanced AI capabilities
+# Enhanced Vector Database for RAG
 vector_db = None
 sentence_model = None
 vector_db_initialized = False
+document_store = {}  # Maps document IDs to metadata
+chunk_store = {}     # Maps chunk IDs to content and metadata
 
 def initialize_vector_db():
     """Initialize vector database for RAG capabilities - runs asynchronously"""
@@ -421,6 +423,9 @@ def initialize_vector_db():
             vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
             vector_db_initialized = True
             print("✅ Vector database initialized for enhanced AI capabilities")
+            
+            # Load existing documents from database if any
+            load_existing_documents()
             return True
         except Exception as e:
             print(f"⚠️  Could not initialize vector database: {e}")
@@ -428,6 +433,235 @@ def initialize_vector_db():
     else:
         print("⚠️  Vector database support not available. Install sentence-transformers and faiss-cpu for enhanced AI capabilities.")
         return False
+
+def chunk_text(text, chunk_size=500, overlap=50):
+    """Split text into overlapping chunks for better semantic search"""
+    words = text.split()
+    chunks = []
+    
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = ' '.join(words[i:i + chunk_size])
+        if chunk.strip():
+            chunks.append(chunk)
+        
+        # Break if we've reached the end
+        if i + chunk_size >= len(words):
+            break
+    
+    return chunks
+
+def add_document_to_vector_db(content, filename, file_type='text'):
+    """Add a document to the vector database with semantic chunking"""
+    if not vector_db_initialized or not sentence_model:
+        return False
+    
+    try:
+        # Generate unique document ID
+        doc_id = hashlib.md5(f"{filename}_{time.time()}".encode()).hexdigest()
+        
+        # Chunk the document
+        chunks = chunk_text(content)
+        
+        if not chunks:
+            return False
+        
+        # Generate embeddings for all chunks
+        embeddings = sentence_model.encode(chunks)
+        
+        # Store document metadata
+        document_store[doc_id] = {
+            'filename': filename,
+            'file_type': file_type,
+            'total_chunks': len(chunks),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Add each chunk to the vector database
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            chunk_id = f"{doc_id}_chunk_{i}"
+            
+            # Store chunk metadata
+            chunk_store[chunk_id] = {
+                'content': chunk,
+                'doc_id': doc_id,
+                'filename': filename,
+                'chunk_index': i,
+                'file_type': file_type
+            }
+            
+            # Add to FAISS index
+            vector_db.add(embedding.reshape(1, -1))
+        
+        # Save to database for persistence
+        save_document_to_db(doc_id, filename, content, file_type, len(chunks))
+        
+        print(f"✅ Added document '{filename}' to vector database with {len(chunks)} chunks")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error adding document to vector database: {e}")
+        return False
+
+def search_similar_content(query, k=5, similarity_threshold=0.3):
+    """Search for similar content using semantic search"""
+    if not vector_db_initialized or not sentence_model:
+        return []
+    
+    try:
+        # Generate query embedding
+        query_embedding = sentence_model.encode([query])
+        
+        # Search in vector database
+        scores, indices = vector_db.search(query_embedding, k)
+        
+        results = []
+        chunk_ids = list(chunk_store.keys())
+        
+        for score, idx in zip(scores[0], indices[0]):
+            if idx < len(chunk_ids) and score > similarity_threshold:
+                chunk_id = chunk_ids[idx]
+                chunk_data = chunk_store.get(chunk_id, {})
+                
+                if chunk_data:
+                    results.append({
+                        'content': chunk_data['content'],
+                        'filename': chunk_data['filename'],
+                        'similarity_score': float(score),
+                        'chunk_index': chunk_data['chunk_index'],
+                        'file_type': chunk_data['file_type']
+                    })
+        
+        # Sort by similarity score
+        results.sort(key=lambda x: x['similarity_score'], reverse=True)
+        return results
+        
+    except Exception as e:
+        print(f"❌ Error searching vector database: {e}")
+        return []
+
+def save_document_to_db(doc_id, filename, content, file_type, chunk_count):
+    """Save document metadata to SQLite database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Create documents table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS documents (
+                    id TEXT PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    chunk_count INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Insert document
+            cursor.execute('''
+                INSERT OR REPLACE INTO documents (id, filename, content, file_type, chunk_count)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (doc_id, filename, content, file_type, chunk_count))
+            
+            conn.commit()
+            
+    except Exception as e:
+        print(f"❌ Error saving document to database: {e}")
+
+def load_existing_documents():
+    """Load existing documents from database into vector store"""
+    if not vector_db_initialized:
+        return
+        
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if documents table exists
+            cursor.execute('''
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='documents'
+            ''')
+            
+            if not cursor.fetchone():
+                return  # Table doesn't exist yet
+            
+            # Load all documents
+            cursor.execute('SELECT id, filename, content, file_type FROM documents')
+            documents = cursor.fetchall()
+            
+            for doc in documents:
+                doc_id, filename, content, file_type = doc
+                
+                # Re-chunk and add to vector database
+                chunks = chunk_text(content)
+                
+                if chunks:
+                    embeddings = sentence_model.encode(chunks)
+                    
+                    # Store document metadata
+                    document_store[doc_id] = {
+                        'filename': filename,
+                        'file_type': file_type,
+                        'total_chunks': len(chunks),
+                        'created_at': datetime.now().isoformat()
+                    }
+                    
+                    # Add chunks to vector database
+                    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                        chunk_id = f"{doc_id}_chunk_{i}"
+                        
+                        chunk_store[chunk_id] = {
+                            'content': chunk,
+                            'doc_id': doc_id,
+                            'filename': filename,
+                            'chunk_index': i,
+                            'file_type': file_type
+                        }
+                        
+                        vector_db.add(embedding.reshape(1, -1))
+            
+            print(f"✅ Loaded {len(documents)} existing documents into vector database")
+            
+    except Exception as e:
+        print(f"❌ Error loading existing documents: {e}")
+
+def get_rag_context(user_message, max_context_length=2000):
+    """Get relevant context from vector database for RAG"""
+    if not vector_db_initialized:
+        return ""
+    
+    try:
+        # Search for relevant content
+        similar_content = search_similar_content(user_message, k=3, similarity_threshold=0.4)
+        
+        if not similar_content:
+            return ""
+        
+        # Build context from similar content
+        context_parts = []
+        current_length = 0
+        
+        for content in similar_content:
+            content_text = f"From {content['filename']} (similarity: {content['similarity_score']:.2f}):\n{content['content']}\n"
+            
+            if current_length + len(content_text) > max_context_length:
+                break
+                
+            context_parts.append(content_text)
+            current_length += len(content_text)
+        
+        if context_parts:
+            rag_context = "=== RELEVANT CONTEXT FROM UPLOADED DOCUMENTS ===\n\n"
+            rag_context += "\n---\n\n".join(context_parts)
+            rag_context += "\n=== END CONTEXT ===\n"
+            return rag_context
+        
+        return ""
+        
+    except Exception as e:
+        print(f"❌ Error getting RAG context: {e}")
+        return ""
 
 # Vector database will be initialized in background thread
 
@@ -703,6 +937,12 @@ def process_uploaded_file(file_path):
         }
         session.modified = True
 
+        # Add to vector database for semantic search
+        if vector_db_initialized:
+            success = add_document_to_vector_db(content, filename, file_extension)
+            if success:
+                print(f"✅ Document '{filename}' added to vector database for semantic search")
+
         return content
 
     except Exception as e:
@@ -813,8 +1053,12 @@ def chat():
         if context_summary:
             messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
 
-        # Add uploaded files context
-        if 'uploaded_files' in session and session['uploaded_files']:
+        # Add RAG context using semantic search
+        rag_context = get_rag_context(user_message)
+        if rag_context:
+            messages.append({"role": "system", "content": rag_context})
+        elif 'uploaded_files' in session and session['uploaded_files']:
+            # Fallback to basic file context if RAG is not available
             files_context = "Uploaded files context:\n"
             for filename, content in session['uploaded_files'].items():
                 files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
@@ -899,8 +1143,12 @@ def chat_stream():
                 if context_summary:
                     messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
 
-                # Add uploaded files context
-                if uploaded_files:
+                # Add RAG context using semantic search
+                rag_context = get_rag_context(user_message)
+                if rag_context:
+                    messages.append({"role": "system", "content": rag_context})
+                elif uploaded_files:
+                    # Fallback to basic file context if RAG is not available
                     files_context = "Uploaded files context:\n"
                     for filename, content in uploaded_files.items():
                         files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
@@ -1275,6 +1523,100 @@ def save_chat():
 
     except Exception as e:
         return jsonify({'error': f'Error saving chat: {str(e)}'}), 500
+
+@app.route('/search_documents', methods=['POST'])
+def search_documents():
+    """Search uploaded documents using semantic search"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+        
+        if not query:
+            return jsonify({'error': 'Query cannot be empty'}), 400
+        
+        if not vector_db_initialized:
+            return jsonify({'error': 'Vector database not initialized'}), 500
+        
+        # Search for similar content
+        results = search_similar_content(query, k=10, similarity_threshold=0.2)
+        
+        return jsonify({
+            'success': True,
+            'query': query,
+            'results': results,
+            'total_results': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Search error: {str(e)}'}), 500
+
+@app.route('/vector_db_stats', methods=['GET'])
+def vector_db_stats():
+    """Get vector database statistics"""
+    try:
+        if not vector_db_initialized:
+            return jsonify({
+                'initialized': False,
+                'error': 'Vector database not initialized'
+            })
+        
+        # Count documents and chunks
+        document_count = len(document_store)
+        chunk_count = len(chunk_store)
+        
+        # Get document details
+        document_details = []
+        for doc_id, doc_info in document_store.items():
+            document_details.append({
+                'id': doc_id,
+                'filename': doc_info['filename'],
+                'file_type': doc_info['file_type'],
+                'chunk_count': doc_info['total_chunks'],
+                'created_at': doc_info['created_at']
+            })
+        
+        return jsonify({
+            'initialized': True,
+            'document_count': document_count,
+            'chunk_count': chunk_count,
+            'vector_dimension': 384,
+            'model_name': 'all-MiniLM-L6-v2',
+            'documents': document_details
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Stats error: {str(e)}'}), 500
+
+@app.route('/clear_vector_db', methods=['POST'])
+def clear_vector_db():
+    """Clear all documents from vector database"""
+    try:
+        global vector_db, document_store, chunk_store
+        
+        if not vector_db_initialized:
+            return jsonify({'error': 'Vector database not initialized'}), 500
+        
+        # Clear in-memory stores
+        document_store.clear()
+        chunk_store.clear()
+        
+        # Recreate empty FAISS index
+        if HAS_VECTOR_SUPPORT and faiss:
+            vector_db = faiss.IndexFlatIP(384)
+        
+        # Clear documents from database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM documents')
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Vector database cleared successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Clear error: {str(e)}'}), 500
 
 @app.route('/save_system_prompt', methods=['POST'])
 def save_system_prompt():
