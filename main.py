@@ -1661,5 +1661,16 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     
+    # Try different ports if default is occupied
+    import socket
+    for attempt_port in [port, 5001, 5002, 5003]:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('0.0.0.0', attempt_port))
+                port = attempt_port
+                break
+        except OSError:
+            continue
+    
     print(f"🚀 Starting Flask app on port {port} (debug: {debug_mode})")
     app.run(host='0.0.0.0', port=port, debug=debug_mode, threaded=True)
