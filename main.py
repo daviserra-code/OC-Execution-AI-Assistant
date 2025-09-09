@@ -203,8 +203,10 @@ def init_app_background():
             print(f"📊 Database stats: {session_count} sessions, {exchange_count} exchanges")
     except Exception as e:
         print(f"❌ Database stats error: {e}")
-
-# Vector database will be initialized on first use
+    
+    # Initialize vector database in background
+    if HAS_VECTOR_SUPPORT:
+        initialize_vector_db()
 
 if not openai.api_key:
     print("⚠️  Warning: OPENAI_API_KEY not set. Please add it to Secrets.")
@@ -402,14 +404,16 @@ def allowed_file(filename):
 # Initialize vector database for enhanced AI capabilities
 vector_db = None
 sentence_model = None
+vector_db_initialized = False
 
 def initialize_vector_db():
-    """Initialize vector database for RAG capabilities"""
-    global vector_db, sentence_model
+    """Initialize vector database for RAG capabilities - runs asynchronously"""
+    global vector_db, sentence_model, vector_db_initialized
     if HAS_VECTOR_SUPPORT and SentenceTransformer and faiss:
         try:
             sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
             vector_db = faiss.IndexFlatIP(384)  # 384 is the embedding dimension
+            vector_db_initialized = True
             print("✅ Vector database initialized for enhanced AI capabilities")
             return True
         except Exception as e:
@@ -419,9 +423,7 @@ def initialize_vector_db():
         print("⚠️  Vector database support not available. Install sentence-transformers and faiss-cpu for enhanced AI capabilities.")
         return False
 
-# Initialize vector database now
-if HAS_VECTOR_SUPPORT:
-    initialize_vector_db()
+# Vector database will be initialized in background thread
 
 def analyze_code_structure(code_content, file_extension):
     """Analyze code structure and extract meaningful information"""
@@ -560,27 +562,31 @@ def summarize_context(chat_history):
 
 @app.route('/')
 def index():
-    # For health checks, return immediately if it's a simple GET without session setup
+    # Fast path for health checks and deployment probes
+    accept_header = request.headers.get('Accept', '')
     user_agent = request.headers.get('User-Agent', '').lower()
-    if 'health' in user_agent or 'ping' in user_agent or not request.headers.get('Accept', '').startswith('text/html'):
-        return {'status': 'ok'}, 200
+    
+    # Return JSON for non-browser requests (health checks, deployment probes)
+    if ('health' in user_agent or 'ping' in user_agent or 
+        not accept_header.startswith('text/html') or
+        'curl' in user_agent or 'wget' in user_agent):
+        return {'status': 'ok', 'timestamp': time.time()}, 200
 
     try:
-        session_id = get_session_id()
-
-        # Defer chat history loading to avoid blocking health checks
-        persistent_history = []
+        # Minimal initialization for browser requests
         if 'chat_history' not in session:
             session['chat_history'] = []
-
         if 'assistant_mode' not in session:
             session['assistant_mode'] = 'general'
+        
+        # Get session ID but don't block on database operations
+        session_id = get_session_id()
         session.modified = True
 
-        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=persistent_history)
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
     except Exception as e:
         print(f"Error in index route: {e}")
-        # Return a minimal response if there's an error
+        # Return minimal working template
         return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
 
 @app.route('/chat', methods=['POST'])
@@ -1261,4 +1267,9 @@ Logging, metrics, alerting strategies.'''
         return jsonify({'error': 'Template not found'}), 404
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Production configuration for deployment
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    
+    print(f"🚀 Starting Flask app on port {port} (debug: {debug_mode})")
+    app.run(host='0.0.0.0', port=port, debug=debug_mode, threaded=True)
