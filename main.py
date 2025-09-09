@@ -1002,7 +1002,8 @@ def test_db():
 def delete_old_sessions():
     """Delete sessions older than specified days (default 30 days)"""
     try:
-        days = request.json.get('days', 30) if request.is_json else 30
+        data = request.get_json() if request.is_json else {}
+        days = data.get('days', 30) if data else 30
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
