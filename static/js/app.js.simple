@@ -1,0 +1,157 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const chatContainer = document.getElementById('chat-container');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const themeToggle = document.getElementById('theme-toggle');
+
+    // Theme Logic
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+        if (themeToggle) themeToggle.textContent = '☀️';
+    }
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-theme');
+            const isDark = document.body.classList.contains('dark-theme');
+            themeToggle.textContent = isDark ? '☀️' : '🌙';
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        });
+    }
+
+    // Auto-resize textarea
+    if (messageInput) {
+        messageInput.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if (this.value === '') {
+                this.style.height = 'auto';
+            }
+        });
+
+        // Send on Enter (but allow Shift+Enter for newlines)
+        messageInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+
+    if (sendBtn) {
+        sendBtn.addEventListener('click', () => sendMessage());
+    }
+});
+
+let isLoading = false;
+
+function sendMessage() {
+    if (isLoading) return;
+
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    addMessage('user', message);
+    input.value = '';
+    input.style.height = 'auto';
+
+    isLoading = true;
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Add placeholder for assistant response
+    const messageDiv = addMessage('assistant', '', true);
+    const contentDiv = messageDiv.querySelector('.message-content');
+    contentDiv.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+
+    fetch('/chat_stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message })
+    })
+        .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullResponse = '';
+            contentDiv.innerHTML = ''; // Clear typing dots
+
+            function readStream() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        isLoading = false;
+                        if (sendBtn) sendBtn.disabled = false;
+                        return;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.content) {
+                                    fullResponse += data.content;
+                                    contentDiv.innerHTML = formatMessage(fullResponse);
+                                    scrollToBottom();
+                                } else if (data.error) {
+                                    contentDiv.innerHTML = `❌ Error: ${data.error}`;
+                                }
+                            } catch (e) {
+                                // Ignore parsing errors
+                            }
+                        }
+                    }
+                    return readStream();
+                });
+            }
+            return readStream();
+        })
+        .catch(error => {
+            isLoading = false;
+            if (sendBtn) sendBtn.disabled = false;
+            contentDiv.innerHTML = `❌ Network error: ${error.message}`;
+        });
+}
+
+function addMessage(sender, content, isPlaceholder = false) {
+    const chatContainer = document.getElementById('chat-container');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = sender === 'user' ? '👤' : '🤖';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    if (!isPlaceholder) {
+        contentDiv.innerHTML = formatMessage(content);
+    }
+
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(contentDiv);
+    chatContainer.appendChild(messageDiv);
+
+    scrollToBottom();
+    return messageDiv;
+}
+
+function scrollToBottom() {
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+}
+
+function formatMessage(content) {
+    // Basic markdown formatting
+    return content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+}

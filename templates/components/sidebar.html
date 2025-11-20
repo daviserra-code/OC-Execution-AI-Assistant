@@ -1,0 +1,131 @@
+<div class="sidebar">
+    <div class="logo">
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                <defs>
+                    <linearGradient id="aurora-logo" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+                        <stop offset="0" stop-color="#22D3EE" />
+                        <stop offset="0.35" stop-color="#6EE7FF" />
+                        <stop offset="0.7" stop-color="#A78BFA" />
+                        <stop offset="1" stop-color="#F472B6" />
+                    </linearGradient>
+                    <filter id="soft-logo" x="-10%" y="-10%" width="120%" height="120%">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="0.6" />
+                    </filter>
+                </defs>
+                <!-- Outer shield -->
+                <path
+                    d="M128 20c42 0 88 16 108 44 2 3 2 7 0 10-20 28-66 44-108 44S40 102 20 74c-2-3-2-7 0-10C40 36 86 20 128 20z"
+                    fill="url(#aurora-logo)" />
+                <!-- Inner eye ring -->
+                <circle cx="128" cy="74" r="28" fill="#0B0F14" />
+                <circle cx="128" cy="74" r="14" fill="url(#aurora-logo)" />
+                <!-- Lower shield body -->
+                <path d="M32 96c0 64 40 140 96 140s96-76 96-140c-27 18-61 28-96 28S59 114 32 96z" fill="#0F1621" />
+                <!-- Aperture cut (sentinel slit) -->
+                <path d="M78 148c16 10 32 14 50 14s34-4 50-14" stroke="url(#aurora-logo)" stroke-width="6"
+                    stroke-linecap="round" filter="url(#soft-logo)" />
+            </svg>
+            Teyra AI Assistant
+        </h1>
+        <p>Advanced Software Architecture, MES Expert and Prompt Maker</p>
+    </div>
+
+    <div class="mode-selector">
+        <h3><i class="fas fa-cog"></i> Assistant Mode</h3>
+        <div class="mode-buttons" id="modeButtons">
+            <!-- Modes will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <div class="theme-selector" style="background: #f8f9fa; border-radius: 15px; padding: 15px; margin-bottom: 20px;">
+        <h3><i class="fas fa-palette"></i> Theme</h3>
+        <div class="theme-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="theme-btn active" onclick="switchTheme('classic')" data-theme="classic"
+                style="padding: 8px 12px; border: 2px solid #667eea; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; font-size: 11px; text-align: center;">
+                🎨 Classic
+            </button>
+            <button class="theme-btn" onclick="switchTheme('teyra')" data-theme="teyra"
+                style="padding: 8px 12px; border: 2px solid #e9ecef; background: white; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; font-size: 11px; text-align: center;">
+                🌌 Teyra Dark
+            </button>
+        </div>
+    </div>
+
+    <div class="upload-section">
+        <h3><i class="fas fa-upload"></i> Upload Files</h3>
+        <div class="file-input-wrapper">
+            <input type="file" id="fileInput" class="file-input" multiple>
+            <label for="fileInput" class="file-input-label">
+                <i class="fas fa-cloud-upload-alt"></i> Choose Files
+            </label>
+        </div>
+        <div id="filePreview" class="file-preview"></div>
+        <p style="font-size: 11px; color: #666; margin-top: 8px;">
+            Supports: Code files, Documents, Images, etc.
+        </p>
+    </div>
+
+    <div class="templates-section">
+        <h3><i class="fas fa-file-alt"></i> Quick Templates</h3>
+        <button class="template-btn" onclick="loadTemplate('adr')">
+            📋 Architecture Decision Record
+        </button>
+        <button class="template-btn" onclick="loadTemplate('hld')">
+            🏗️ High-Level Design Document
+        </button>
+        <button class="template-btn" onclick="loadTemplate('code_review')">
+            👨‍💻 Code Review Checklist
+        </button>
+    </div>
+
+    <div class="session-info"
+        style="background: #e8f5e8; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 11px;">
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fas fa-database" style="color: #28a745; margin-right: 5px;"></i>
+            <strong>Persistent Storage Active</strong>
+        </div>
+        <div id="sessionInfo" style="color: #666;">
+            Loading session info...
+        </div>
+    </div>
+
+    <div class="admin-controls" id="adminControls">
+        <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
+        <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
+            <i class="fas fa-edit"></i> Edit System Prompts
+        </button>
+        <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
+            <i class="fas fa-sign-out-alt"></i> Logout Admin
+        </button>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn primary" onclick="window.open('/dashboard', '_blank')"
+            style="background: linear-gradient(135deg, #28a745, #20c997); margin-bottom: 12px;">
+            <i class="fas fa-chart-line"></i> 📊 Dashboard
+        </button>
+        <button onclick="adminRequired('showPrompt')" class="control-btn primary">
+            <i class="fas fa-eye"></i> View System Prompt
+        </button>
+        <button class="control-btn secondary" onclick="exportConversation()">
+            <i class="fas fa-download"></i> Export
+        </button>
+        <button onclick="showChatHistory()" class="control-btn secondary">
+            <i class="fas fa-history"></i> View Chat History
+        </button>
+        <button onclick="showSessionInfo()" class="control-btn secondary">
+            <i class="fas fa-info-circle"></i> Session Info
+        </button>
+        <button onclick="showExportOptions()" class="control-btn warning">
+            <i class="fas fa-download"></i> Export Conversation
+        </button>
+        <button onclick="clearHistory()" class="control-btn danger">
+            <i class="fas fa-trash"></i> Clear Chat History
+        </button>
+        <button onclick="showAdminLogin()" class="control-btn warning">
+            <i class="fas fa-shield-alt"></i> Admin Login
+        </button>
+    </div>
+</div>

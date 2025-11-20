@@ -1,0 +1,35 @@
+<div class="chat-container">
+    <div class="chat-header">
+        <div>
+            <h2>💬 Chat with AI Assistant</h2>
+            <p>Ask about software architecture, MES/MOM development, or upload files for analysis</p>
+        </div>
+        <div class="current-mode">
+            <div class="mode-badge" id="currentModeDisplay">
+                🏗️ General Architecture
+            </div>
+        </div>
+    </div>
+
+    <div id="chatMessages" class="chat-messages">
+        <!-- Chat history will be loaded here -->
+    </div>
+
+    <div class="input-container">
+        <div class="input-wrapper">
+            <textarea id="messageInput" class="message-input"
+                placeholder="Ask about architecture patterns, MES/MOM development, or describe your technical challenge..."
+                rows="1"></textarea>
+            <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+            <div id="streamingIndicator" class="streaming-indicator" style="display: none;">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

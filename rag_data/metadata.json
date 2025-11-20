@@ -1,0 +1,10 @@
+[
+  {
+    "filename": "test_rag.txt",
+    "file_type": ".txt",
+    "chunk_index": 0,
+    "total_chunks": 1,
+    "content": "\nThis is a test document for Teyra RAG persistence.\nThe secret code is: ALPHA-TANGO-FOXTROT-99.\nIf Teyra can recall this code after a restart, persistence is working.\n",
+    "content_preview": "\nThis is a test document for Teyra RAG persistence.\nThe secret code is: ALPHA-TANGO-FOXTROT-99.\nIf Teyra can recall this code after a restart, persistence is working.\n"
+  }
+]
