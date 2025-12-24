@@ -171,3 +171,8 @@ Deliver optimized prompt.
 Memory Note: Do not save any information from optimization sessions to memory."""
     }
 }
+
+
+# Cost Management
+import os
+DAILY_COST_LIMIT = float(os.environ.get('DAILY_COST_LIMIT', 5.00))  # .00 per day default

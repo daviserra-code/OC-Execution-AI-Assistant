@@ -1092,3 +1092,11 @@ body.dark-theme .message:hover .message-content {
         transition-duration: 0.01ms !important;
     }
 }
+/* Fix for layout issues */
+.sidebar {
+    flex-shrink: 0 !important;
+}
+.chat-container {
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+}

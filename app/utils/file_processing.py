@@ -4,14 +4,19 @@ import ast
 import zipfile
 import tarfile
 
+import base64
+import io
+
 try:
-    import PyPDF2
+    import pypdf
     import docx
+    from PIL import Image
     HAS_DOC_SUPPORT = True
 except ImportError:
     HAS_DOC_SUPPORT = False
-    PyPDF2 = None
+    pypdf = None
     docx = None
+    Image = None
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'py', 'js', 'html', 'css', 'json', 'xml', 'cs', 'yaml', 'yml', 'md', 'sql', 'ipynb', 'zip', 'tar', 'tar.gz', 'tgz', 'rar', '7z'}
 
@@ -211,15 +216,41 @@ def process_uploaded_file(file_path):
         content = ""
 
         # Handle different file types
-        if file_extension == '.pdf' and HAS_DOC_SUPPORT and PyPDF2:
+        # Handle different file types
+        if file_extension == '.pdf' and HAS_DOC_SUPPORT and pypdf:
             try:
-                with open(file_path, 'rb') as f:
-                    pdf_reader = PyPDF2.PdfReader(f)
-                    content = ""
-                    for page in pdf_reader.pages:
-                        content += page.extract_text() + "\n"
+                reader = pypdf.PdfReader(file_path)
+                content = ""
+                for page in reader.pages:
+                    content += page.extract_text() + "\n"
             except Exception as e:
                 content = f"[PDF processing error: {str(e)}]"
+
+        elif file_extension in ['.png', '.jpg', '.jpeg', '.gif', '.bmp'] and HAS_DOC_SUPPORT and Image:
+            try:
+                with Image.open(file_path) as img:
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if too large (max 2048x2048 for GPT-4o Vision optimization)
+                    max_size = (2048, 2048)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    
+                    # Convert to base64
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                    
+                    # Return special dict for image
+                    return {
+                        'type': 'image',
+                        'mime_type': 'image/jpeg',
+                        'data': img_str,
+                        'filename': filename
+                    }, None
+            except Exception as e:
+                content = f"[Image processing error: {str(e)}]"
 
         elif file_extension in ['.docx', '.doc'] and HAS_DOC_SUPPORT and docx:
             try:

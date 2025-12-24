@@ -1,0 +1,40 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+*.db
+*.sqlite3
+
+# Config files with secrets
+.config/
+
+# Local state
+.local/
+
+# Breakpoints
+.breakpoints
+
+# RAG data
+rag_data/
+
+# Debug files
+debug_*.py
+verify_*.py
+test_*.txt

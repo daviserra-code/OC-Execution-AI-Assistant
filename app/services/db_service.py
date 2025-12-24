@@ -38,6 +38,17 @@ class DBService:
                 )
             ''')
             cursor.execute('''
+                CREATE TABLE IF NOT EXISTS token_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    model TEXT NOT NULL,
+                    tokens_in INTEGER DEFAULT 0,
+                    tokens_out INTEGER DEFAULT 0,
+                    cost REAL DEFAULT 0.0,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('''
                 CREATE INDEX IF NOT EXISTS idx_session_id ON chat_exchanges (session_id)
             ''')
             cursor.execute('''
@@ -45,6 +56,16 @@ class DBService:
             ''')
             cursor.execute('''
                 CREATE INDEX IF NOT EXISTS idx_mode ON system_prompts (mode)
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    response TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON token_usage (timestamp)
             ''')
             conn.commit()
 
@@ -156,3 +177,71 @@ class DBService:
         except Exception as e:
             print(f"❌ Database stats error: {e}")
             return {'sessions': 0, 'exchanges': 0}
+
+    def log_token_usage(self, session_id, model, tokens_in, tokens_out):
+        """Log token usage and calculate cost"""
+        # Cost per 1k tokens (approximate as of late 2024)
+        rates = {
+            'gpt-4o': {'in': 0.005, 'out': 0.015},
+            'gpt-4-turbo': {'in': 0.01, 'out': 0.03},
+            'gpt-3.5-turbo': {'in': 0.0005, 'out': 0.0015}
+        }
+        
+        rate = rates.get(model, rates['gpt-4o']) # Default to gpt-4o rates
+        cost = (tokens_in / 1000 * rate['in']) + (tokens_out / 1000 * rate['out'])
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO token_usage (session_id, model, tokens_in, tokens_out, cost)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (session_id, model, tokens_in, tokens_out, cost))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error logging token usage: {e}")
+            return False
+
+    def get_daily_cost(self):
+        """Get total cost for the current day"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT SUM(cost) as total_cost 
+                    FROM token_usage 
+                    WHERE date(timestamp) = date('now')
+                ''')
+                result = cursor.fetchone()
+                return result['total_cost'] or 0.0
+        except Exception as e:
+            print(f"❌ Error getting daily cost: {e}")
+            return 0.0
+
+    def get_cached_response(self, cache_key):
+        """Retrieve a cached response"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT response FROM response_cache WHERE cache_key = ?', (cache_key,))
+                row = cursor.fetchone()
+                return row['response'] if row else None
+        except Exception as e:
+            print(f"❌ Error retrieving cached response: {e}")
+            return None
+
+    def save_cached_response(self, cache_key, response):
+        """Save a response to the cache"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO response_cache (cache_key, response)
+                    VALUES (?, ?)
+                ''', (cache_key, response))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error saving cached response: {e}")
+            return False

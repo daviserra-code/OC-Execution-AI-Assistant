@@ -251,5 +251,32 @@ class RAGService:
                 
         return True
 
+    def get_stats(self):
+        """Get statistics about the vector database"""
+        if not self.initialized:
+            return {
+                "status": "Not Initialized",
+                "total_documents": 0,
+                "total_chunks": 0,
+                "index_size": 0,
+                "files": []
+            }
+            
+        with self.lock:
+            total_chunks = len(self.document_metadata)
+            unique_files = list(set(doc['filename'] for doc in self.document_metadata))
+            
+            # Calculate approximate memory usage (384 float32 vectors)
+            # 384 dimensions * 4 bytes per float * number of vectors
+            vector_memory = total_chunks * 384 * 4
+            
+            return {
+                "status": "Active",
+                "total_documents": len(unique_files),
+                "total_chunks": total_chunks,
+                "index_size": vector_memory,
+                "files": unique_files
+            }
+
 # Global instance
 rag_service = RAGService()

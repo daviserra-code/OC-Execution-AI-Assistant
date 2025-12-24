@@ -4,6 +4,7 @@ from app.services.rag_service import rag_service
 from app.services.openai_service import openai_service
 from app.utils.file_processing import process_uploaded_file, allowed_file
 from app.config import ASSISTANT_MODES
+from app.templates_data import TEMPLATES
 from werkzeug.utils import secure_filename
 import os
 import time
@@ -20,9 +21,10 @@ main_bp = Blueprint('main', __name__)
 # We'll assume the default path for now or get it from config in the route
 db_service = DBService()
 
-# Response cache
-response_cache = {}
-cache_lock = threading.Lock()
+# Initialize DB Service
+# Note: We initialize it here, but in a real app we might want to use current_app.config
+# We'll assume the default path for now or get it from config in the route
+db_service = DBService()
 
 def get_session_id():
     """Get or create a session ID"""
@@ -193,6 +195,22 @@ def chat_stream():
         chat_history = session.get('chat_history', [])
         mode = session.get('assistant_mode', 'general')
         uploaded_files = session.get('uploaded_files', {})
+        session_id = get_session_id()
+        regenerate = data.get('regenerate', False)
+
+        # Check cache (DB)
+        context_summary = summarize_context(chat_history)
+        cache_key = get_cache_key(user_message, mode, context_summary)
+        
+        if not regenerate:
+            cached_response = db_service.get_cached_response(cache_key)
+            if cached_response:
+                # Stream cached response
+                def generate_cached():
+                    yield f"data: {json.dumps({'content': cached_response})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'full_response': cached_response, 'cached': True})}\n\n"
+                
+                return Response(generate_cached(), mimetype='text/event-stream')
 
         def generate():
             try:
@@ -211,27 +229,63 @@ def chat_stream():
                 rag_context = rag_service.get_context(user_message)
                 if rag_context:
                     messages.append({"role": "system", "content": rag_context})
-                elif uploaded_files:
-                    files_context = "Uploaded files context:\n"
+                
+                # Handle uploaded files (Text and Images)
+                files_context = "Uploaded files context:\n"
+                image_content = []
+                
+                if uploaded_files:
                     for filename, content_data in uploaded_files.items():
                         content = content_data['content']
-                        files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
-                    messages.append({"role": "system", "content": files_context})
+                        
+                        # Check if it's an image (dict with type='image')
+                        if isinstance(content, dict) and content.get('type') == 'image':
+                            image_content.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{content['mime_type']};base64,{content['data']}"
+                                }
+                            })
+                            files_context += f"\n[Attached Image: {filename}]\n"
+                        else:
+                            # Text content
+                            files_context += f"\n--- {filename} ---\n{content[:2000]}{'...' if len(content) > 2000 else ''}\n"
+                    
+                    if len(files_context) > 30: # If we added anything
+                        messages.append({"role": "system", "content": files_context})
 
                 for chat in chat_history[-15:]:
                     messages.append({"role": "user", "content": chat['user']})
                     messages.append({"role": "assistant", "content": chat['assistant']})
 
-                messages.append({"role": "user", "content": user_message})
+                # Construct final user message with images if present
+                if image_content:
+                    final_user_content = [{"type": "text", "text": user_message}]
+                    final_user_content.extend(image_content)
+                    messages.append({"role": "user", "content": final_user_content})
+                else:
+                    messages.append({"role": "user", "content": user_message})
 
-                stream = openai_service.get_chat_stream(messages)
+                # Get settings from session
+                model = session.get('model', 'gpt-4o')
+                temperature = session.get('temperature', 0.7)
+
+                stream = openai_service.get_chat_stream(
+                    messages, 
+                    session_id=session_id,
+                    model=model,
+                    temperature=temperature
+                )
 
                 full_response = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content is not None:
-                        content = chunk.choices[0].delta.content
+                for content in stream:
+                    if content:
                         full_response += content
                         yield f"data: {json.dumps({'content': content})}\n\n"
+
+                # Save to cache (DB)
+                if full_response:
+                    db_service.save_cached_response(cache_key, full_response)
 
                 yield f"data: {json.dumps({'done': True, 'full_response': full_response})}\n\n"
 
@@ -599,108 +653,33 @@ def dashboard_metrics():
 @main_bp.route('/templates/<template_type>')
 def get_template(template_type):
     """Provide quick templates for common tasks"""
-    templates = {
-        'adr': {
-            'name': 'Architecture Decision Record',
-            'content': '''# ADR-{number}: {Title}
-
-## Status
-Proposed | Accepted | Deprecated | Superseded
-
-## Context
-What is the issue that we're seeing that is motivating this decision or change?
-
-## Decision
-What is the change that we're proposing and/or doing?
-
-## Consequences
-What becomes easier or more difficult to do because of this change?
-
-## Alternatives Considered
-What other options did we consider?
-
-## References
-Links to relevant documentation, discussions, or other ADRs.'''
-        },
-        'hld': {
-            'name': 'High-Level Design Template',
-            'content': '''# High-Level Design: {System Name}
-
-## Overview
-Brief description of the system and its purpose.
-
-## Goals and Requirements
-- Functional requirements
-- Non-functional requirements
-- Constraints
-
-## Architecture Overview
-
-```mermaid
-graph TB
-    A[Client] --> B[API Gateway]
-    B --> C[Service Layer]
-    C --> D[Data Layer]
-```
-
-## System Components
-### Component 1
-- Purpose
-- Responsibilities
-- Interfaces
-
-## Data Flow
-Describe how data flows through the system.
-
-## Security Considerations
-Authentication, authorization, data protection.
-
-## Scalability and Performance
-Expected load, scaling strategies.
-
-## Monitoring and Observability
-Logging, metrics, alerting strategies.'''
-        },
-        'code_review': {
-            'name': 'Code Review Checklist',
-            'content': '''# Code Review Checklist
-
-## Functionality
-- [ ] Code does what it's supposed to do
-- [ ] Edge cases are handled
-- [ ] Error handling is appropriate
-
-## Code Quality
-- [ ] Code follows established conventions
-- [ ] Variables and functions are well-named
-- [ ] Code is DRY (Don't Repeat Yourself)
-- [ ] Functions are small and focused
-
-## Security
-- [ ] No hardcoded secrets or credentials
-- [ ] Input validation is implemented
-- [ ] SQL injection prevention
-- [ ] XSS prevention (for web apps)
-
-## Performance
-- [ ] No obvious performance bottlenecks
-- [ ] Database queries are optimized
-- [ ] Appropriate data structures used
-
-## Testing
-- [ ] Unit tests cover new functionality
-- [ ] Tests are meaningful and not just for coverage
-- [ ] Integration tests where appropriate
-
-## Documentation
-- [ ] Code is self-documenting
-- [ ] Complex logic is commented
-- [ ] API documentation updated if needed'''
-        }
-    }
-
-    template = templates.get(template_type)
+    template = TEMPLATES.get(template_type)
     if template:
         return jsonify(template)
     else:
         return jsonify({'error': 'Template not found'}), 404
+
+@main_bp.route('/vector_db_stats')
+def vector_db_stats():
+    try:
+        stats = rag_service.get_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/settings', methods=['GET', 'POST'])
+def settings():
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            session['model'] = data.get('model', 'gpt-4o')
+            session['temperature'] = float(data.get('temperature', 0.7))
+            session.modified = True
+            return jsonify({'success': True, 'message': 'Settings saved'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    else:
+        return jsonify({
+            'model': session.get('model', 'gpt-4o'),
+            'temperature': session.get('temperature', 0.7)
+        })

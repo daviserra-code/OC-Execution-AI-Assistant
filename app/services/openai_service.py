@@ -2,6 +2,10 @@ import openai
 import os
 import json
 from app.tools import search_web, calculate
+from app.services.db_service import DBService
+from app.config import DAILY_COST_LIMIT
+
+db_service = DBService()
 
 class OpenAIService:
     def __init__(self):
@@ -95,40 +99,152 @@ class OpenAIService:
             max_tokens=max_tokens
         )
 
-    def get_chat_stream(self, messages, model="gpt-4o", temperature=0.7, max_tokens=3000):
+    def get_chat_stream(self, messages, session_id=None, model="gpt-4o", temperature=0.7, max_tokens=3000):
         if not self.api_key:
             raise ValueError("OpenAI API key not configured")
 
-        # Note: Streaming with tools is complex. For simplicity in this iteration,
-        # we will use non-streaming for tool calls or just basic streaming without tools for now
-        # if the user didn't explicitly ask for a complex streaming tool implementation.
-        # However, to support the requested feature in the UI which expects a stream,
-        # we might need to handle this carefully.
+        # Check daily cost limit
+        current_cost = db_service.get_daily_cost()
+        if current_cost >= DAILY_COST_LIMIT:
+            yield f"⚠️ **Daily Cost Limit Exceeded**\n\nYou have reached the daily limit of ${DAILY_COST_LIMIT:.2f}. Please contact the administrator or wait until tomorrow."
+            return
+
+        # First call to LLM with stream=True
+        stream = openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=self.tools,
+            tool_choice="auto",
+            stream=True,
+            stream_options={"include_usage": True}
+        )
+
+        tool_calls = []
+        current_tool_call = None
+        usage_data = None
         
-        # Current strategy: Use standard completion for tool logic (blocking), 
-        # then stream the FINAL response.
-        
-        # 1. Check if tools are needed (using a non-streaming check or just standard completion)
-        # For efficiency, let's try to use the standard completion logic first if tools are likely,
-        # OR we can just stream and if a tool call chunk arrives, we handle it.
-        # Handling tool calls in stream is tricky.
-        
-        # SIMPLIFIED APPROACH:
-        # We will use get_chat_completion logic to handle tools, then yield the result chunk by chunk
-        # to mimic a stream for the frontend.
-        
-        completion = self.get_chat_completion(messages, model, temperature, max_tokens)
-        content = completion.choices[0].message.content
-        
-        # Mock stream object
-        class MockChunk:
-            def __init__(self, content):
-                self.choices = [type('obj', (object,), {'delta': type('obj', (object,), {'content': content})})]
-        
-        # Yield the whole content in a few chunks to simulate streaming
-        chunk_size = 20
-        for i in range(0, len(content), chunk_size):
-            yield MockChunk(content[i:i+chunk_size])
+        for chunk in stream:
+            # Handle usage data if present (usually in the last chunk)
+            if hasattr(chunk, 'usage') and chunk.usage:
+                usage_data = chunk.usage
+                continue
+
+            if not chunk.choices:
+                continue
+                
+            delta = chunk.choices[0].delta
+            
+            # Handle content (stream immediately)
+            if delta.content:
+                yield delta.content
+            
+            # Handle tool calls (aggregate)
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    if tc.id: # New tool call
+                        if current_tool_call:
+                            tool_calls.append(current_tool_call)
+                        current_tool_call = {
+                            "id": tc.id,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments or ""
+                            },
+                            "type": "function"
+                        }
+                    elif current_tool_call: # Continuation of arguments
+                        if tc.function.arguments:
+                            current_tool_call["function"]["arguments"] += tc.function.arguments
+
+        # Append last tool call if any
+        if current_tool_call:
+            tool_calls.append(current_tool_call)
+
+        # Log usage for first call
+        if usage_data:
+             # We need a session ID to log usage properly. 
+             # Since we don't have it passed here easily without changing signature, 
+             # we'll use a placeholder or try to extract it if we refactor.
+             # For now, let's assume we can get it or pass it. 
+             # Ideally, get_chat_stream should accept session_id.
+             # For this iteration, we'll log with 'unknown_session' or similar if not passed.
+             # BUT, looking at main_routes, we can pass session_id.
+             pass 
+             # NOTE: I will update the method signature in a separate step to pass session_id
+             # For now, let's just log it if we can, or skip session_id.
+             db_service.log_token_usage(session_id, model, usage_data.prompt_tokens, usage_data.completion_tokens)
+
+        # If we had tool calls, we need to execute them and recurse
+        if tool_calls:
+            # Create a proper assistant message object from our aggregated data
+            assistant_msg = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": []
+            }
+            
+            for tc in tool_calls:
+                assistant_msg["tool_calls"].append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": tc["function"]
+                })
+                
+            messages.append(assistant_msg)
+
+            # Execute tools
+            for tc in tool_calls:
+                function_name = tc["function"]["name"]
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                    
+                    tool_output = None
+                    if function_name == "search_web":
+                        yield "\n\n*Searching the web...*\n\n"
+                        tool_output = search_web(args.get("query"))
+                    elif function_name == "calculate":
+                        yield "\n\n*Calculating...*\n\n"
+                        tool_output = calculate(args.get("expression"))
+                    
+                    messages.append({
+                        "tool_call_id": tc["id"],
+                        "role": "tool",
+                        "name": function_name,
+                        "content": tool_output
+                    })
+                except Exception as e:
+                    print(f"Error executing tool {function_name}: {e}")
+                    messages.append({
+                        "tool_call_id": tc["id"],
+                        "role": "tool",
+                        "name": function_name,
+                        "content": f"Error: {str(e)}"
+                    })
+
+            # Second call to LLM (Streamed)
+            stream2 = openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+                stream_options={"include_usage": True}
+            )
+            
+            usage_data_2 = None
+            for chunk in stream2:
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage_data_2 = chunk.usage
+                    continue
+
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            
+            # Log usage for second call
+            if usage_data_2:
+                db_service.log_token_usage(session_id, model, usage_data_2.prompt_tokens, usage_data_2.completion_tokens)
 
 # Global instance
 openai_service = OpenAIService()

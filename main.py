@@ -21,12 +21,7 @@ except Exception as e:
     print(f"[ERROR] Database initialization error: {e}")
 
 # Initialize RAG in background
-# Initialize Database
-try:
-    db_service.init_database()
-    print("[OK] Database initialized successfully")
-except Exception as e:
-    print(f"[ERROR] Database initialization error: {e}")
+
 
 if __name__ == '__main__':
     # Production configuration for deployment
