@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teyra - Document Management</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/teyra-theme.css" rel="stylesheet">
+    <style>
+        .dashboard-container {
+            background: var(--bg-0);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: var(--mono);
+        }
+
+        .dashboard-header {
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dashboard-title {
+            color: var(--text-0);
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .document-list {
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .document-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.2s;
+        }
+
+        .document-item:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .document-item:last-child {
+            border-bottom: none;
+        }
+
+        .document-name {
+            color: var(--text-0);
+            font-size: 16px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--acc-1), var(--acc-3));
+            color: #081118;
+            font-weight: 600;
+        }
+
+        .btn-secondary {
+            background: var(--bg-1);
+            color: var(--text-0);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--acc-1);
+        }
+
+        .editor-container {
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            display: none;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 500px;
+            background: var(--bg-0);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-0);
+            padding: 15px;
+            font-family: var(--mono);
+            font-size: 14px;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--acc-1);
+        }
+
+        .back-btn {
+            background: var(--bg-1);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-0);
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--bg-0);
+            border-color: var(--acc-1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">
+                <i class="fas fa-file-alt"></i> Document Management
+            </h1>
+            <a href="/" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back to Chat
+            </a>
+        </div>
+
+        <div id="list-view" class="document-list">
+            <h3 style="color: var(--text-1); margin-bottom: 15px;">Available Documents</h3>
+            <div id="documents-container">
+                <!-- Documents will be loaded here -->
+                <div style="color: var(--text-1); padding: 20px; text-align: center;">Loading...</div>
+            </div>
+        </div>
+
+        <div id="editor-view" class="editor-container">
+            <div class="editor-header">
+                <h3 id="editing-filename" style="color: var(--text-0); margin: 0;">Editing: filename.txt</h3>
+                <div>
+                    <button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveDocument()">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+            <textarea id="document-content" spellcheck="false"></textarea>
+        </div>
+    </div>
+
+    <script>
+        let currentFilename = null;
+
+        document.addEventListener('DOMContentLoaded', loadDocuments);
+
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/admin/documents');
+                const data = await response.json();
+
+                const container = document.getElementById('documents-container');
+                if (data.documents && data.documents.length > 0) {
+                    container.innerHTML = data.documents.map(doc => `
+                        <div class="document-item">
+                            <span class="document-name">
+                                <i class="fas fa-file-text" style="margin-right: 10px; color: var(--acc-1);"></i>
+                                ${doc}
+                            </span>
+                            <button class="btn btn-secondary" onclick="editDocument('${doc}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div style="color: var(--text-1); padding: 20px; text-align: center;">No documents found. Upload files in the chat interface first.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading documents:', error);
+                document.getElementById('documents-container').innerHTML = '<div style="color: var(--danger);">Error loading documents</div>';
+            }
+        }
+
+        async function editDocument(filename) {
+            try {
+                const response = await fetch(`/admin/documents/${filename}`);
+                const data = await response.json();
+
+                if (data.content) {
+                    currentFilename = filename;
+                    document.getElementById('editing-filename').textContent = `Editing: ${filename}`;
+                    document.getElementById('document-content').value = data.content;
+
+                    document.getElementById('list-view').style.display = 'none';
+                    document.getElementById('editor-view').style.display = 'block';
+                } else {
+                    alert('Error loading document content');
+                }
+            } catch (error) {
+                console.error('Error fetching document:', error);
+                alert('Error fetching document');
+            }
+        }
+
+        function closeEditor() {
+            document.getElementById('editor-view').style.display = 'none';
+            document.getElementById('list-view').style.display = 'block';
+            currentFilename = null;
+        }
+
+        async function saveDocument() {
+            if (!currentFilename) return;
+
+            const content = document.getElementById('document-content').value;
+            const btn = document.querySelector('.btn-primary');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/admin/documents/${currentFilename}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: content })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Document saved successfully! The vector database has been updated.');
+                    closeEditor();
+                } else {
+                    alert('Error saving document: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving document:', error);
+                alert('Error saving document');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

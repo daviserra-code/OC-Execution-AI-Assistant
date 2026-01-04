@@ -1,0 +1,9 @@
+flask
+openai
+duckduckgo-search
+sentence-transformers
+faiss-cpu
+pypdf
+Pillow
+python-dotenv
+requests

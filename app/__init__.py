@@ -14,9 +14,12 @@ def create_app():
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
 
-    # Register Blueprints (to be added)
-    # from app.routes.main_routes import main_bp
-    # app.register_blueprint(main_bp)
+    # Register Blueprints
+    from app.routes.main_routes import main_bp
+    app.register_blueprint(main_bp)
+
+    from app.routes.auth_routes import auth_bp
+    app.register_blueprint(auth_bp)
     
     # Initialize RAG Service
     from app.services.rag_service import rag_service

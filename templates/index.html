@@ -5,28 +5,173 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Admin Login Panel -->
-<div id="adminLoginPanel" class="admin-login-panel">
-    <div class="admin-login-content">
-        <h3><i class="fas fa-shield-alt"></i> Administrator Login</h3>
-        <form id="adminLoginForm">
-            <div class="login-field">
-                <label for="adminUsername">Username:</label>
-                <input type="text" id="adminUsername" name="username" required>
-            </div>
-            <div class="login-field">
-                <label for="adminPassword">Password:</label>
-                <input type="password" id="adminPassword" name="password" required>
-            </div>
-            <div class="login-actions">
-                <button type="submit" class="login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Login
+<!-- Admin Panel -->
+<div id="adminPanel" class="admin-panel" style="display: none;">
+    <div class="admin-content">
+        <div class="admin-header">
+            <h3><i class="fas fa-shield-alt"></i> Admin Panel</h3>
+            <button onclick="closeAdminPanel()" class="icon-btn"><i class="fas fa-times"></i></button>
+        </div>
+
+        <div class="admin-body">
+            <!-- Tabs -->
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="switchAdminTab('users')">
+                    <i class="fas fa-users"></i> Users
                 </button>
-                <button type="button" class="cancel-btn" onclick="hideAdminLogin()">
-                    <i class="fas fa-times"></i> Cancel
+                <button class="tab-btn" onclick="switchAdminTab('system')">
+                    <i class="fas fa-cogs"></i> System
                 </button>
             </div>
-        </form>
+
+            <!-- Users Tab -->
+            <div id="tab-users" class="tab-content active">
+                <div class="toolbar">
+                    <button onclick="showAddUserModal()" class="control-btn primary small">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                    <button onclick="loadUserList()" class="control-btn secondary small">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="userTable" class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Tab (Placeholder for existing system prompt stuff) -->
+            <div id="tab-system" class="tab-content">
+                <div class="system-actions">
+                    <button onclick="showSystemPromptEditor()" class="control-btn warning">
+                        <i class="fas fa-edit"></i> Edit System Prompts
+                    </button>
+                    <button onclick="showVectorDbStats()" class="control-btn secondary">
+                        <i class="fas fa-database"></i> Vector DB Stats
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-sign-in-alt"></i> Login</h3>
+            <span class="close" onclick="closeModal('loginModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUsername" required class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" required class="form-input">
+                </div>
+                <button type="submit" class="control-btn primary" style="width: 100%; margin-top: 20px;">
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> Add User</h3>
+            <span class="close" onclick="closeModal('addUserModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="newUsername" required class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="newPassword" required class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="newRole" class="form-input">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="control-btn primary" style="width: 100%; margin-top: 20px;">
+                    Create User
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-edit"></i> Edit User</h3>
+            <span class="close" onclick="closeModal('editUserModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="editUserForm">
+                <input type="hidden" id="editUserId">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="editUsername" required class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="editRole" class="form-input">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>New Password (Optional)</label>
+                    <div style="position: relative;">
+                        <input type="password" id="editPassword" class="form-input"
+                            placeholder="Leave blank to keep current">
+                        <button type="button" onclick="togglePasswordVisibility('editPassword')"
+                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #666;">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Confirm New Password</label>
+                    <div style="position: relative;">
+                        <input type="password" id="editConfirmPassword" class="form-input"
+                            placeholder="Repeat new password">
+                        <button type="button" onclick="togglePasswordVisibility('editConfirmPassword')"
+                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #666;">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="control-btn primary" style="width: 100%; margin-top: 20px;">
+                    Save Changes
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 

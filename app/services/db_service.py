@@ -1,6 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 
 class DBService:
     def __init__(self, db_path='chat_history.db'):
@@ -57,6 +58,23 @@ class DBService:
             cursor.execute('''
                 CREATE INDEX IF NOT EXISTS idx_mode ON system_prompts (mode)
             ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT DEFAULT 'user',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Create default admin if not exists
+            cursor.execute('SELECT count(*) as count FROM users WHERE username = ?', ('admin',))
+            if cursor.fetchone()[0] == 0:
+                # Default password: admin123 (hash generated with werkzeug.security.generate_password_hash)
+                # We will import generate_password_hash at the top, or just do it here if possible. 
+                # Better to use the method we will add.
+                pass 
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS response_cache (
                     cache_key TEXT PRIMARY KEY,
@@ -244,4 +262,116 @@ class DBService:
                 return True
         except Exception as e:
             print(f"❌ Error saving cached response: {e}")
+            return False
+
+    # ========================================
+    # User Management
+    # ========================================
+
+    def create_user(self, username, password, role='user'):
+        """Create a new user"""
+        try:
+            password_hash = generate_password_hash(password)
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO users (username, password_hash, role)
+                    VALUES (?, ?, ?)
+                ''', (username, password_hash, role))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error creating user: {e}")
+            return False
+
+    def verify_user(self, username, password):
+        """Verify user credentials"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+                user = cursor.fetchone()
+                
+                if user and check_password_hash(user['password_hash'], password):
+                    return dict(user)
+                return None
+        except Exception as e:
+            print(f"❌ Error verifying user: {e}")
+            return None
+
+    def get_all_users(self):
+        """Get all users"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC')
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting users: {e}")
+            return []
+
+    def get_user_by_id(self, user_id):
+        """Get a user by ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT id, username, role, created_at FROM users WHERE id = ?', (user_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"❌ Error getting user: {e}")
+            return None
+
+    def delete_user(self, user_id):
+        """Delete a user"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error deleting user: {e}")
+            return False
+
+    def update_user_password(self, user_id, new_password):
+        """Update user password"""
+        try:
+            password_hash = generate_password_hash(new_password)
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error updating password: {e}")
+            return False
+
+    def update_user_details(self, user_id, username=None, role=None):
+        """Update user details (username, role)"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                updates = []
+                params = []
+                
+                if username:
+                    updates.append("username = ?")
+                    params.append(username)
+                
+                if role:
+                    updates.append("role = ?")
+                    params.append(role)
+                    
+                if not updates:
+                    return True # Nothing to update
+                    
+                params.append(user_id)
+                query = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+                
+                cursor.execute(query, tuple(params))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error updating user details: {e}")
             return False

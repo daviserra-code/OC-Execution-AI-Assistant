@@ -1092,11 +1092,451 @@ body.dark-theme .message:hover .message-content {
         transition-duration: 0.01ms !important;
     }
 }
+
 /* Fix for layout issues */
 .sidebar {
     flex-shrink: 0 !important;
 }
+
 .chat-container {
     min-width: 0 !important;
     overflow-x: hidden !important;
+}
+
+/* Mobile Responsiveness */
+
+/* Sidebar Toggle Button (Hidden on Desktop) */
+.sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1001;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 15px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.sidebar-toggle:hover {
+    transform: scale(1.05);
+}
+
+/* Tablet Styles (768px - 1024px) */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 250px;
+    }
+
+    .chat-container {
+        width: calc(100% - 250px);
+    }
+}
+
+/* Mobile Styles (< 768px) */
+@media (max-width: 768px) {
+
+    /* Show Toggle Button */
+    .sidebar-toggle {
+        display: block;
+    }
+
+    /* Hide Sidebar by Default */
+    .sidebar {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 1000;
+        transition: left 0.3s ease-in-out;
+        box-shadow: 2px 0 15px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Show Sidebar when Active */
+    .sidebar.active {
+        left: 0;
+    }
+
+    /* Full Width Chat */
+    .chat-container {
+        width: 100%;
+        margin-left: 0;
+        padding-top: 60px;
+        /* Space for toggle button */
+    }
+
+    /* Adjust Input Area */
+    .input-area {
+        padding: 15px;
+    }
+
+    .input-container {
+        padding: 5px;
+    }
+
+    /* Larger Touch Targets */
+    .mode-btn,
+    .action-btn,
+    .send-btn {
+        padding: 12px;
+    }
+
+    /* Typography */
+    .message-content {
+        font-size: 16px;
+        /* Larger text for readability */
+    }
+
+    /* Overlay when sidebar is open */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .sidebar-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+}
+
+/* Force Mobile Layout if detected by Backend */
+body.device-mobile .sidebar-toggle {
+    display: block !important;
+}
+
+body.device-mobile .sidebar {
+    position: fixed !important;
+    left: -280px !important;
+    top: 0;
+    bottom: 0;
+    width: 280px !important;
+    z-index: 1000;
+    transition: left 0.3s ease-in-out;
+    box-shadow: 2px 0 15px rgba(0, 0, 0, 0.2);
+}
+
+body.device-mobile .sidebar.active {
+    left: 0 !important;
+}
+
+body.device-mobile .chat-container {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding-top: 60px !important;
+}
+
+body.device-mobile .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+body.device-mobile .sidebar-overlay.active {
+    display: block !important;
+    opacity: 1 !important;
+}
+
+/* Device-Specific Overrides (Backend Detected) */
+body.device-mobile .message-content {
+    font-size: 1.1rem;
+}
+
+body.device-mobile .input-container textarea {
+    font-size: 16px;
+    /* Prevent zoom on iOS */
+}
+
+/* Fix for Modal Visibility */
+.modal,
+.admin-login-panel {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal[style*="display: block"],
+.modal[style*="display: flex"] {
+    display: flex !important;
+}
+
+.modal-content {
+    background: var(--chat-bg);
+    margin: auto;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    animation: slideUpBounce 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.modal-header {
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 15px 15px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-header .close {
+    color: white;
+    opacity: 0.8;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-header .close:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* Fix for Mobile Chat Layout */
+@media (max-width: 768px) {
+    .chat-container {
+        height: 100dvh !important;
+        /* Use dynamic viewport height */
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .chat-messages {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        padding-bottom: 20px !important;
+    }
+
+    .input-container {
+        position: sticky !important;
+        bottom: 0 !important;
+        background: var(--chat-bg) !important;
+        z-index: 100 !important;
+        padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+        /* iOS Safe Area */
+    }
+
+    /* Ensure modals are on top of everything on mobile */
+    .modal,
+    .admin-login-panel {
+        z-index: 9999 !important;
+    }
+}
+
+/* Admin Panel Styling */
+.admin-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+}
+
+.admin-content {
+    width: 90%;
+    max-width: 1000px;
+    height: 80vh;
+    background: var(--chat-bg);
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--input-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 15px 15px 0 0;
+}
+
+.admin-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 20px;
+}
+
+.admin-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--input-border);
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.tab-btn.active {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-weight: bold;
+}
+
+.tab-btn:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Admin Tables */
+.table-container {
+    background: var(--chat-messages-bg);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--input-border);
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--input-border);
+    color: var(--text-primary);
+}
+
+.admin-table th {
+    background: rgba(102, 126, 234, 0.1);
+    font-weight: 600;
+    color: #667eea;
+}
+
+.admin-table tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+body.dark-theme .admin-table tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Forms */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    background: var(--message-assistant-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
+.form-input:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.control-btn.small {
+    padding: 6px 12px;
+    font-size: 11px;
+    width: auto;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.icon-btn:hover {
+    opacity: 1;
 }

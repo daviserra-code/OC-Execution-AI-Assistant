@@ -1,7 +1,8 @@
 import openai
 import os
 import json
-from app.tools import search_web, calculate
+from app.tools.search_tool import search_web
+from app.tools.code_execution_tool import execute_python
 from app.services.db_service import DBService
 from app.config import DAILY_COST_LIMIT
 
@@ -34,17 +35,17 @@ class OpenAIService:
             {
                 "type": "function",
                 "function": {
-                    "name": "calculate",
-                    "description": "Perform a mathematical calculation.",
+                    "name": "execute_python",
+                    "description": "Execute Python code to perform calculations, data analysis, or generate visualizations. Use print() to output results.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "expression": {
+                            "code": {
                                 "type": "string",
-                                "description": "The mathematical expression to evaluate (e.g., 'sqrt(144) * 25')."
+                                "description": "The Python code to execute."
                             }
                         },
-                        "required": ["expression"]
+                        "required": ["code"]
                     }
                 }
             }
@@ -81,8 +82,8 @@ class OpenAIService:
             tool_output = None
             if function_name == "search_web":
                 tool_output = search_web(function_args.get("query"))
-            elif function_name == "calculate":
-                tool_output = calculate(function_args.get("expression"))
+            elif function_name == "execute_python":
+                tool_output = execute_python(function_args.get("code"))
                 
             messages.append({
                 "tool_call_id": tool_call.id,
@@ -204,9 +205,9 @@ class OpenAIService:
                     if function_name == "search_web":
                         yield "\n\n*Searching the web...*\n\n"
                         tool_output = search_web(args.get("query"))
-                    elif function_name == "calculate":
-                        yield "\n\n*Calculating...*\n\n"
-                        tool_output = calculate(args.get("expression"))
+                    elif function_name == "execute_python":
+                        yield "\n\n*Executing code...*\n\n"
+                        tool_output = execute_python(args.get("code"))
                     
                     messages.append({
                         "tool_call_id": tc["id"],

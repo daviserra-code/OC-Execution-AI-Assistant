@@ -3,6 +3,9 @@ from app.services.db_service import DBService
 from app.services.rag_service import rag_service
 from app.services.openai_service import openai_service
 from app.utils.file_processing import process_uploaded_file, allowed_file
+from app.services.openai_service import openai_service
+from app.utils.file_processing import process_uploaded_file, allowed_file
+from app.utils.device_detection import detect_device
 from app.config import ASSISTANT_MODES
 from app.templates_data import TEMPLATES
 from werkzeug.utils import secure_filename
@@ -21,10 +24,7 @@ main_bp = Blueprint('main', __name__)
 # We'll assume the default path for now or get it from config in the route
 db_service = DBService()
 
-# Initialize DB Service
-# Note: We initialize it here, but in a real app we might want to use current_app.config
-# We'll assume the default path for now or get it from config in the route
-db_service = DBService()
+
 
 def get_session_id():
     """Get or create a session ID"""
@@ -77,11 +77,14 @@ def index():
 
         session_id = get_session_id()
         session.modified = True
+        
+        # Detect device type
+        device_type = detect_device(request.user_agent.string)
 
-        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[], device_type=device_type)
     except Exception as e:
         print(f"Error in index route: {e}")
-        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[])
+        return render_template('index.html', modes=ASSISTANT_MODES, initial_chat_history=[], device_type='desktop')
 
 @main_bp.route('/chat', methods=['POST'])
 def chat():
@@ -89,6 +92,7 @@ def chat():
         data = request.get_json()
         user_message = data.get('message', '').strip()
         regenerate = data.get('regenerate', False)
+        language = data.get('language', 'en')
 
         if not user_message and not regenerate:
             return jsonify({'error': 'Message cannot be empty'}), 400
@@ -130,6 +134,9 @@ def chat():
 
         # Build messages
         messages = [{"role": "system", "content": current_prompt}]
+        
+        if language == 'it':
+            messages.append({"role": "system", "content": "IMPORTANT: You must respond in Italian. Translate any technical terms only if appropriate, otherwise keep them in English but explain them in Italian if needed."})
 
         if context_summary:
             messages.append({"role": "system", "content": f"Previous conversation context: {context_summary}"})
@@ -197,6 +204,11 @@ def chat_stream():
         uploaded_files = session.get('uploaded_files', {})
         session_id = get_session_id()
         regenerate = data.get('regenerate', False)
+        language = data.get('language', 'en')
+        
+        # Get settings from session (must be done outside generator)
+        model = session.get('model', 'gpt-4o')
+        temperature = session.get('temperature', 0.7)
 
         # Check cache (DB)
         context_summary = summarize_context(chat_history)
@@ -221,6 +233,9 @@ def chat_stream():
                     current_prompt = row['custom_prompt'] if row else ASSISTANT_MODES[mode]['prompt']
 
                 messages = [{"role": "system", "content": current_prompt}]
+                
+                if language == 'it':
+                    messages.append({"role": "system", "content": "IMPORTANT: You must respond in Italian. Translate any technical terms only if appropriate, otherwise keep them in English but explain them in Italian if needed."})
                 
                 context_summary = summarize_context(chat_history)
                 if context_summary:
@@ -267,9 +282,8 @@ def chat_stream():
                     messages.append({"role": "user", "content": user_message})
 
                 # Get settings from session
-                model = session.get('model', 'gpt-4o')
-                temperature = session.get('temperature', 0.7)
-
+                # model and temperature are now captured from closure
+                
                 stream = openai_service.get_chat_stream(
                     messages, 
                     session_id=session_id,
@@ -555,20 +569,7 @@ def search_documents():
     except Exception as e:
         return jsonify({'error': f'Search error: {str(e)}'}), 500
 
-@main_bp.route('/vector_db_stats', methods=['GET'])
-def vector_db_stats():
-    try:
-        if not rag_service.initialized:
-            return jsonify({'initialized': False, 'error': 'Vector database not initialized'})
 
-        return jsonify({
-            'initialized': True,
-            'document_count': len(rag_service.document_metadata), # Approximation
-            'vector_dimension': 384,
-            'model_name': 'all-MiniLM-L6-v2'
-        })
-    except Exception as e:
-        return jsonify({'error': f'Stats error: {str(e)}'}), 500
 
 @main_bp.route('/clear_vector_db', methods=['POST'])
 def clear_vector_db():
@@ -683,3 +684,52 @@ def settings():
             'model': session.get('model', 'gpt-4o'),
             'temperature': session.get('temperature', 0.7)
         })
+
+@main_bp.route('/graph_data')
+def get_graph_data():
+    try:
+        data = rag_service.get_graph_data()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/admin/documents', methods=['GET'])
+def list_documents():
+    try:
+        documents = rag_service.get_documents()
+        return jsonify({'documents': documents})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/admin/documents/<filename>', methods=['GET'])
+def get_document(filename):
+    try:
+        content = rag_service.get_document_content(filename)
+        if content is None:
+            return jsonify({'error': 'Document not found'}), 404
+        return jsonify({'content': content})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/admin/documents/<filename>', methods=['POST'])
+def update_document(filename):
+    try:
+        data = request.get_json()
+        content = data.get('content')
+        
+        if content is None:
+            return jsonify({'error': 'Content is required'}), 400
+            
+        # We assume file type is txt for edits, or we could try to preserve it if we had it stored better
+        # For now, we'll treat it as text
+        file_extension = os.path.splitext(filename)[1].lower() or '.txt'
+        
+        success = rag_service.add_document(content, filename, file_extension)
+        
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to update document'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

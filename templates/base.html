@@ -8,16 +8,29 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='teyra-theme.css') }}" rel="stylesheet" id="teyra-theme" disabled>
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}?v=3" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/micro-interactions.css') }}" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#22D3EE">
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     {% block head %}{% endblock %}
 </head>
 
-<body>
+<body class="device-{{ device_type }}">
+    <!-- Mobile Sidebar Toggle -->
+    <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
+        <i class="fas fa-bars"></i>
+    </button>
     <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="graphToggle" title="Graph View" style="right: 120px;">
+        <i class="fas fa-project-diagram"></i>
+    </button>
     <button class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
         <i class="fas fa-moon"></i>
+    </button>
+    <button class="theme-toggle" id="langToggle" title="Switch Language" style="right: 70px;">
+        <span style="font-weight: bold; font-size: 12px;">EN</span>
     </button>
 
     <div class="container">
@@ -26,6 +39,54 @@
     </div>
 
     {% block modals %}{% endblock %}
+
+    <!-- Graph Modal -->
+    <div id="graphModal" class="modal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000;">
+        <div class="modal-content"
+            style="background: var(--bg-0); width: 90%; height: 90%; margin: 2% auto; border-radius: 12px; padding: 20px; position: relative;">
+            <button onclick="document.getElementById('graphModal').style.display='none'"
+                style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-0); font-size: 24px; cursor: pointer;">&times;</button>
+            <h2 style="color: var(--text-0); margin-top: 0;">Knowledge Graph</h2>
+            <div id="network-graph"
+                style="width: 100%; height: calc(100% - 50px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(registration => console.log('ServiceWorker registered'))
+                    .catch(err => console.log('ServiceWorker registration failed: ', err));
+            });
+        }
+    </script>
+
+    <!-- Graph Modal -->
+    <div id="graphModal" class="modal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000;">
+        <div class="modal-content"
+            style="background: var(--bg-0); width: 90%; height: 90%; margin: 2% auto; border-radius: 12px; padding: 20px; position: relative;">
+            <button onclick="document.getElementById('graphModal').style.display='none'"
+                style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-0); font-size: 24px; cursor: pointer;">&times;</button>
+            <h2 style="color: var(--text-0); margin-top: 0;">Knowledge Graph</h2>
+            <div id="network-graph"
+                style="width: 100%; height: calc(100% - 50px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(registration => console.log('ServiceWorker registered'))
+                    .catch(err => console.log('ServiceWorker registration failed: ', err));
+            });
+        }
+    </script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/micro-interactions.js') }}"></script>

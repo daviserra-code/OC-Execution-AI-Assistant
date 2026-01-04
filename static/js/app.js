@@ -71,6 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fileInput) {
         fileInput.addEventListener('change', handleFileUpload);
     }
+
+    // Initialize Mobile Sidebar
+    initializeMobileSidebar();
 });
 
 /**
@@ -154,7 +157,7 @@ function streamingChat(message) {
     fetch('/chat_stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message })
+        body: JSON.stringify({ message: message, language: currentLanguage })
     })
         .then(response => {
             const reader = response.body.getReader();
@@ -220,7 +223,7 @@ function regularChat(message, regenerate = false) {
     fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message, regenerate: regenerate })
+        body: JSON.stringify({ message: message, regenerate: regenerate, language: currentLanguage })
     })
         .then(response => response.json())
         .then(data => {
@@ -567,139 +570,234 @@ function closeModal(modalId) {
 }
 
 // Admin functions
-let isAdminLoggedIn = false;
+// ========================================
+// AUTH & ADMIN FUNCTIONS
+// ========================================
 
-function showAdminLogin() {
-    document.getElementById('adminLoginPanel').style.display = 'block';
-}
+let currentUser = null;
 
-function hideAdminLogin() {
-    document.getElementById('adminLoginPanel').style.display = 'none';
-    document.getElementById('adminLoginForm').reset();
-}
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
 
-function initializeAdminLogin() {
-    const adminForm = document.getElementById('adminLoginForm');
-    if (adminForm) {
-        adminForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const username = document.getElementById('adminUsername').value;
-            const password = document.getElementById('adminPassword').value;
+    // Login Form Handler
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
 
-            if (username === 'admin' && password === 'admin123') {
-                isAdminLoggedIn = true;
-                document.getElementById('adminControls').style.display = 'block';
-                hideAdminLogin();
-                addMessage('assistant', '🔓 **Administrator logged in successfully!**');
-            } else {
-                alert('Invalid credentials. Try username: admin, password: admin123');
+    // Add User Form Handler
+    const addUserForm = document.getElementById('addUserForm');
+    if (addUserForm) {
+        addUserForm.addEventListener('submit', handleAddUser);
+    }
+
+    // Edit User Form Handler
+    const editUserForm = document.getElementById('editUserForm');
+    if (editUserForm) {
+        editUserForm.addEventListener('submit', handleEditUser);
+    }
+});
+
+function checkAuth() {
+    fetch('/check_auth')
+        .then(res => res.json())
+        .then(data => {
+            if (data.authenticated) {
+                currentUser = data.user;
+                updateAuthUI();
             }
-        });
+        })
+        .catch(err => console.error('Auth check failed', err));
+}
+
+function updateAuthUI() {
+    const adminControls = document.getElementById('adminControls');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
+
+    if (currentUser && currentUser.role === 'admin') {
+        if (adminControls) adminControls.style.display = 'block';
+        if (adminLoginBtn) adminLoginBtn.style.display = 'none';
+    } else {
+        if (adminControls) adminControls.style.display = 'none';
+        if (adminLoginBtn) adminLoginBtn.style.display = 'block';
     }
 }
 
+function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+
+    fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                currentUser = data.user;
+                closeModal('loginModal');
+                addMessage('assistant', `🔓 Welcome back, **${currentUser.username}**!`);
+
+                // If admin login was triggered by a specific action, retry it?
+                // For now just let them proceed manually.
+                updateAuthUI();
+            } else {
+                alert('Login failed: ' + data.error);
+            }
+        })
+        .catch(err => alert('Login error: ' + err.message));
+}
+
+function logout() {
+    fetch('/logout', { method: 'POST' })
+        .then(() => {
+            currentUser = null;
+            updateAuthUI();
+            addMessage('assistant', '👋 Logged out successfully.');
+            // Close admin panel if open
+            const adminPanel = document.getElementById('adminPanel');
+            if (adminPanel) adminPanel.style.display = 'none';
+        });
+}
+
+// Admin Panel Logic
+function showAdminPanel() {
+    console.log('showAdminPanel called');
+    if (!currentUser || currentUser.role !== 'admin') {
+        console.log('Access denied', currentUser);
+        alert('Access Denied: Admin privileges required.');
+        return;
+    }
+    const panel = document.getElementById('adminPanel');
+    if (panel) {
+        console.log('Showing panel');
+        panel.style.display = 'flex';
+        loadUserList();
+    } else {
+        console.error('Admin Panel element not found!');
+    }
+}
+
+function closeAdminPanel() {
+    document.getElementById('adminPanel').style.display = 'none';
+}
+
+function switchAdminTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.admin-tabs .tab-btn').forEach(el => el.classList.remove('active'));
+
+    // Show selected
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    // Highlight button (simple logic, assuming order or ID matching, here strictly by onclick)
+    // Actually we need to find the button that called this. 
+    // Simplified: just re-query buttons and add active class based on text or data attribute.
+    // Ideally pass 'this' or use event.target. For now, rely on simpler CSS toggling if we render fully.
+    // Let's just set the active class on buttons manually for now:
+    const buttons = document.querySelectorAll('.admin-tabs .tab-btn');
+    buttons.forEach(btn => {
+        if (btn.textContent.toLowerCase().includes(tabName)) btn.classList.add('active');
+    });
+}
+
+function loadUserList() {
+    fetch('/admin/users')
+        .then(res => res.json())
+        .then(data => {
+            const tbody = document.querySelector('#userTable tbody');
+            tbody.innerHTML = '';
+
+            if (data.users) {
+                data.users.forEach(user => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                    <td>${user.username}</td>
+                    <td><span class="mode-badge" style="background: ${user.role === 'admin' ? '#A78BFA' : '#667eea'}">${user.role}</span></td>
+                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button onclick="showEditUserModal(${user.id}, '${user.username}', '${user.role}')" class="control-btn warning small" style="margin-right: 5px;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteUser(${user.id})" class="control-btn danger small" ${user.id === currentUser.id ? 'disabled' : ''}>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                    tbody.appendChild(tr);
+                });
+            }
+        })
+        .catch(err => console.error('Failed to load users', err));
+}
+
+function showAddUserModal() {
+    document.getElementById('addUserModal').style.display = 'block';
+}
+
+function handleAddUser(e) {
+    e.preventDefault();
+    const username = document.getElementById('newUsername').value;
+    const password = document.getElementById('newPassword').value;
+    const role = document.getElementById('newRole').value;
+
+    fetch('/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('addUserModal');
+                loadUserList(); // Refresh list
+                alert('User created successfully!');
+                e.target.reset();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => alert('Error creating user: ' + err.message));
+}
+
+function deleteUser(userId) {
+    if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
+
+    fetch(`/admin/users/${userId}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadUserList();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => alert('Delete failed: ' + err.message));
+}
+
+// Override adminRequired to use new auth
 function adminRequired(action) {
-    if (!isAdminLoggedIn) {
-        showAdminLogin();
+    if (!currentUser) {
+        document.getElementById('loginModal').style.display = 'block';
+    } else if (currentUser.role !== 'admin') {
+        alert('Admin privileges required.');
     } else {
         if (action === 'showPrompt') showPrompt();
         if (action === 'showSystemPromptEditor') showSystemPromptEditor();
+        if (action === 'showAdminPanel') showAdminPanel();
     }
 }
 
-function showSystemPromptEditor() {
-    if (!isAdminLoggedIn) {
-        adminRequired('showSystemPromptEditor');
-        return;
-    }
-
-    fetch('/get_prompt')
-        .then(response => response.json())
-        .then(data => {
-            if (data.prompt) {
-                const textarea = document.getElementById('systemPromptTextarea');
-                textarea.value = data.prompt;
-                textarea.style.height = '500px';
-
-                document.getElementById('currentModeInfo').innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 18px;">${data.mode_info.icon}</span>
-                        <div>
-                            <strong>${data.mode_info.name}</strong>
-                            <div style="font-size: 12px; color: #666;">Currently active assistant mode</div>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('systemPromptModal').style.display = 'block';
-                setTimeout(() => textarea.focus(), 100);
-            } else {
-                addMessage('assistant', `❌ Error loading system prompt: ${data.error}`);
-            }
-        })
-        .catch(error => addMessage('assistant', `❌ Network error: ${error.message}`));
+// Update showAdminLogin to show new modal
+function showAdminLogin() {
+    document.getElementById('loginModal').style.display = 'block';
 }
 
-function saveSystemPrompt() {
-    const newPrompt = document.getElementById('systemPromptTextarea').value.trim();
-
-    if (!newPrompt) {
-        alert('System prompt cannot be empty!');
-        return;
-    }
-
-    const activeMode = document.querySelector('.mode-btn.active');
-    const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-
-    fetch('/save_system_prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            mode: mode,
-            prompt: newPrompt
-        })
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                addMessage('assistant', '✅ **System prompt updated and saved!**');
-                closeModal('systemPromptModal');
-            } else {
-                alert('Error saving system prompt: ' + data.error);
-            }
-        })
-        .catch(error => alert('Network error saving prompt: ' + error.message));
+function hideAdminLogin() {
+    closeModal('loginModal');
 }
 
-function resetSystemPrompt() {
-    if (confirm('Are you sure you want to reset the system prompt to its default value?')) {
-        const activeMode = document.querySelector('.mode-btn.active');
-        const mode = activeMode ? activeMode.getAttribute('data-mode') : 'general';
-
-        fetch('/reset_system_prompt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: mode })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    addMessage('assistant', '🔄 **System prompt reset to default!**');
-                    closeModal('systemPromptModal');
-                    document.getElementById('systemPromptTextarea').value = data.default_prompt;
-                } else {
-                    alert('Error resetting prompt: ' + data.error);
-                }
-            })
-            .catch(error => alert('Network error: ' + error.message));
-    }
-}
-
-function logoutAdmin() {
-    isAdminLoggedIn = false;
-    document.getElementById('adminControls').style.display = 'none';
-    addMessage('assistant', '👋 **Administrator logged out successfully.**');
-}
 
 // Theme switching
 function initializeThemeSelector() {
@@ -796,3 +894,252 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ========================================
+// LANGUAGE TOGGLE
+// ========================================
+
+const translations = {
+    'en': {
+        'placeholder': 'Type your message here... (Shift+Enter for new line)',
+        'lang_switched': 'Language switched to English'
+    },
+    'it': {
+        'placeholder': 'Scrivi il tuo messaggio qui... (Shift+Invio per nuova riga)',
+        'lang_switched': 'Lingua cambiata in Italiano'
+    }
+};
+
+let currentLanguage = localStorage.getItem('language') || 'en';
+
+document.addEventListener('DOMContentLoaded', () => {
+    const langToggle = document.getElementById('langToggle');
+    if (langToggle) {
+        updateLanguageUI();
+
+        langToggle.addEventListener('click', () => {
+            currentLanguage = currentLanguage === 'en' ? 'it' : 'en';
+            localStorage.setItem('language', currentLanguage);
+            updateLanguageUI();
+
+            // Show notification
+            const notification = document.createElement('div');
+            notification.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #22D3EE, #A78BFA); color: white; padding: 12px 20px; border-radius: 10px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: slideIn 0.3s ease;';
+            notification.textContent = translations[currentLanguage]['lang_switched'];
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 2000);
+        });
+    }
+});
+
+function updateLanguageUI() {
+    const langToggle = document.getElementById('langToggle');
+    if (langToggle) {
+        langToggle.querySelector('span').textContent = currentLanguage.toUpperCase();
+    }
+
+    // Update placeholder
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.placeholder = translations[currentLanguage]['placeholder'];
+    }
+}
+
+// ========================================
+// KNOWLEDGE GRAPH
+// ========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    const graphToggle = document.getElementById('graphToggle');
+    if (graphToggle) {
+        graphToggle.addEventListener('click', () => {
+            document.getElementById('graphModal').style.display = 'block';
+            loadKnowledgeGraph();
+        });
+    }
+});
+
+function loadKnowledgeGraph() {
+    fetch('/graph_data')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('network-graph');
+
+            if (!data.nodes || data.nodes.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-1); text-align: center; padding-top: 50px;">No documents found. Upload some files to see them here!</div>';
+                return;
+            }
+
+            const nodes = new vis.DataSet(data.nodes);
+            const edges = new vis.DataSet(data.edges);
+
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 20,
+                    font: {
+                        size: 14,
+                        color: '#ffffff'
+                    },
+                    borderWidth: 2,
+                    color: {
+                        background: '#22D3EE',
+                        border: '#ffffff',
+                        highlight: {
+                            background: '#A78BFA',
+                            border: '#ffffff'
+                        }
+                    }
+                },
+                edges: {
+                    width: 2,
+                    color: { color: 'rgba(255, 255, 255, 0.3)' },
+                    smooth: {
+                        type: 'continuous'
+                    }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        springConstant: 0.04,
+                        springLength: 95
+                    }
+                },
+                interaction: {
+                    tooltipDelay: 200,
+                    hideEdgesOnDrag: true
+                }
+            };
+
+            const network = new vis.Network(container, { nodes, edges }, options);
+
+            network.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = nodes.get(nodeId);
+                    // Optional: Open document on click
+                    console.log('Clicked node:', node.label);
+                }
+            });
+        })
+        .catch(error => console.error('Error loading graph:', error));
+}
+
+
+// ========================================
+// MOBILE SIDEBAR LOGIC
+// ========================================
+
+function initializeMobileSidebar() {
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+
+    if (!sidebarToggle || !sidebar) return;
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+    }
+
+    // Toggle button click
+    sidebarToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSidebar();
+    });
+
+    // Overlay click (close)
+    overlay.addEventListener('click', closeSidebar);
+
+    // Close when clicking a mode button (on mobile)
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
+        });
+    });
+}
+
+// ========================================
+// EDIT USER FUNCTIONS
+// ========================================
+
+function showEditUserModal(id, username, role) {
+    document.getElementById('editUserId').value = id;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editRole').value = role;
+    document.getElementById('editPassword').value = '';
+    document.getElementById('editConfirmPassword').value = '';
+    document.getElementById('editUserModal').style.display = 'block';
+}
+
+function handleEditUser(e) {
+    e.preventDefault();
+    const id = document.getElementById('editUserId').value;
+    const username = document.getElementById('editUsername').value;
+    const role = document.getElementById('editRole').value;
+    const password = document.getElementById('editPassword').value;
+    const confirmPassword = document.getElementById('editConfirmPassword').value;
+
+    const data = { username, role };
+
+    if (password) {
+        if (password !== confirmPassword) {
+            alert('Passwords do not match!');
+            return;
+        }
+        data.password = password;
+    }
+
+    fetch(`/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('editUserModal');
+                loadUserList();
+                alert('User updated successfully!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => alert('Error updating user: ' + err.message));
+}
+
+function togglePasswordVisibility(fieldId) {
+    const field = document.getElementById(fieldId);
+    const type = field.getAttribute('type') === 'password' ? 'text' : 'password';
+    field.setAttribute('type', type);
+
+    // Update icon
+    const btn = field.nextElementSibling;
+    const icon = btn.querySelector('i');
+    if (type === 'text') {
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Edit User Form Handler
+    const editUserForm = document.getElementById('editUserForm');
+    if (editUserForm) {
+        editUserForm.addEventListener('submit', handleEditUser);
+    }
+});

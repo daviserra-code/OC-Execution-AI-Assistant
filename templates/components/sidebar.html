@@ -91,12 +91,19 @@
         </div>
     </div>
 
-    <div class="admin-controls" id="adminControls">
+    <div class="admin-controls" id="adminControls" style="display: none;">
         <h4><i class="fas fa-shield-alt"></i> Administrator Controls</h4>
+        <button onclick="showAdminPanel()" class="control-btn primary" style="margin-bottom: 8px;">
+            <i class="fas fa-users-cog"></i> Users & System
+        </button>
+        <button onclick="window.open('/admin/documents', '_blank')" class="control-btn warning"
+            style="margin-bottom: 8px;">
+            <i class="fas fa-file-alt"></i> Manage Articles
+        </button>
         <button onclick="showSystemPromptEditor()" class="control-btn warning" style="margin-bottom: 8px;">
             <i class="fas fa-edit"></i> Edit System Prompts
         </button>
-        <button onclick="logoutAdmin()" class="control-btn danger" style="margin-bottom: 8px;">
+        <button onclick="logout()" class="control-btn danger" style="margin-bottom: 8px;">
             <i class="fas fa-sign-out-alt"></i> Logout Admin
         </button>
     </div>
@@ -124,7 +131,7 @@
         <button onclick="clearHistory()" class="control-btn danger">
             <i class="fas fa-trash"></i> Clear Chat History
         </button>
-        <button onclick="showAdminLogin()" class="control-btn warning">
+        <button id="adminLoginBtn" onclick="showAdminLogin()" class="control-btn warning">
             <i class="fas fa-shield-alt"></i> Admin Login
         </button>
     </div>
