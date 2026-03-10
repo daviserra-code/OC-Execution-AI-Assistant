@@ -3,12 +3,7 @@
 // Global variables
 let isLoading = false;
 let currentMessageIndex = 0;
-let availableModes = {
-    'general': { name: 'General Architecture', icon: '🏗️' },
-    'code_review': { name: 'Code Review', icon: '🔍' },
-    'documentation': { name: 'Documentation', icon: '📝' },
-    'mes_mom': { name: 'MES/MOM Expert', icon: '🏭' }
-};
+let availableModes = {};
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,20 +18,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initialize theme
-    initializeThemeSelector();
+    // Load modes first, then initialize dependent components
+    fetch('/get_modes')
+        .then(response => response.json())
+        .then(data => {
+            availableModes = data.modes;
 
-    // Populate mode buttons
-    populateModeButtons();
+            // Initialize theme
+            initializeThemeSelector();
 
-    // Initialize admin login
-    initializeAdminLogin();
+            // Populate mode buttons
+            populateModeButtons();
 
-    // Load chat history
-    loadChatHistory();
+            // Initialize admin login
+            initializeAdminLogin();
 
-    // Load session info
-    loadSessionInfo();
+            // Load chat history
+            loadChatHistory();
+
+            // Load session info
+            loadSessionInfo();
+        })
+        .catch(error => {
+            console.error('Error loading modes:', error);
+            // Fallback for critical failure? 
+            // We could hardcode a backup or show an error.
+            addMessage('assistant', '❌ Critical Error: Failed to load assistant modes.');
+        });
 
     // Auto-resize textarea
     const messageInput = document.getElementById('messageInput');
