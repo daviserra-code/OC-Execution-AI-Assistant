@@ -5,6 +5,23 @@ let isLoading = false;
 let currentMessageIndex = 0;
 let availableModes = {};
 
+function initializeAfterModesLoaded() {
+    // Initialize theme
+    initializeThemeSelector();
+
+    // Populate mode buttons
+    populateModeButtons();
+
+    // Initialize admin login
+    initializeAdminLogin();
+
+    // Load chat history
+    loadChatHistory();
+
+    // Load session info
+    loadSessionInfo();
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Mermaid
@@ -18,33 +35,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Load modes first, then initialize dependent components
-    fetch('/get_modes')
-        .then(response => response.json())
-        .then(data => {
-            availableModes = data.modes;
+    // Load modes first, then initialize dependent components.
+    // Prefer server-injected modes to avoid startup API dependency issues.
+    const bootstrapModes = window.APP_BOOTSTRAP && window.APP_BOOTSTRAP.modes;
+    const modesEndpoint = (window.APP_BOOTSTRAP && window.APP_BOOTSTRAP.endpoints && window.APP_BOOTSTRAP.endpoints.getModes) || 'get_modes';
 
-            // Initialize theme
-            initializeThemeSelector();
+    if (bootstrapModes && Object.keys(bootstrapModes).length > 0) {
+        availableModes = bootstrapModes;
+        initializeAfterModesLoaded();
+    } else {
+        fetch(modesEndpoint)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data || !data.modes) {
+                    throw new Error('Invalid response payload from get modes endpoint');
+                }
 
-            // Populate mode buttons
-            populateModeButtons();
-
-            // Initialize admin login
-            initializeAdminLogin();
-
-            // Load chat history
-            loadChatHistory();
-
-            // Load session info
-            loadSessionInfo();
-        })
-        .catch(error => {
-            console.error('Error loading modes:', error);
-            // Fallback for critical failure? 
-            // We could hardcode a backup or show an error.
-            addMessage('assistant', '❌ Critical Error: Failed to load assistant modes.');
-        });
+                availableModes = data.modes;
+                initializeAfterModesLoaded();
+            })
+            .catch(error => {
+                console.error('Error loading modes:', error);
+                addMessage('assistant', '❌ Critical Error: Failed to load assistant modes.');
+            });
+    }
 
     // Auto-resize textarea
     const messageInput = document.getElementById('messageInput');

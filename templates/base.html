@@ -63,6 +63,15 @@
         }
     </script>
 
+    <script>
+        window.APP_BOOTSTRAP = {
+            modes: {% if modes is defined %}{{ modes | tojson }}{% else %}{}{% endif %},
+            endpoints: {
+                getModes: "{{ url_for('main.get_modes') }}"
+            }
+        };
+    </script>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/micro-interactions.js') }}"></script>
     {% block scripts %}{% endblock %}
